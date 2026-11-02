@@ -1,0 +1,88 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Cairo', system-ui, sans-serif;
+  background: #f4f7f5;
+  color: #1f2d26;
+  line-height: 1.7;
+}
+.container { max-width: 1000px; margin: 0 auto; padding: 24px 16px; }
+.center-screen { min-height: 70vh; display: flex; align-items: center; justify-content: center; }
+.center-text { text-align: center; }
+h1, h2, h3 { color: #14532d; margin-bottom: 12px; }
+h2 { border-right: 4px solid #16a34a; padding-right: 12px; }
+.muted { color: #64748b; }
+.small { font-size: 0.85rem; }
+
+/* Navbar */
+.navbar {
+  background: #14532d; color: #fff; padding: 12px 24px;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 8px;
+}
+.navbar-brand { font-weight: 800; font-size: 1.15rem; }
+.navbar-links { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.navbar-links a { color: #d1fae5; text-decoration: none; font-weight: 600; }
+.navbar-links a:hover { color: #fff; }
+.navbar-user { color: #a7f3d0; font-size: 0.9rem; }
+
+/* Cards & grid */
+.card {
+  background: #fff; border-radius: 12px; padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 16px;
+}
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin: 16px 0; }
+.login-card { max-width: 420px; text-align: center; padding: 40px 28px; }
+.form-card { max-width: 520px; margin: 0 auto; width: 100%; }
+.card-title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.member-header { display: flex; justify-content: space-between; align-items: center; }
+
+/* Forms */
+label { display: block; font-weight: 600; margin: 12px 0 4px; font-size: 0.95rem; }
+input, select, textarea {
+  width: 100%; padding: 10px 12px; border: 1.5px solid #d1d5db;
+  border-radius: 8px; font-family: inherit; font-size: 1rem; margin-top: 4px;
+}
+input:focus, select:focus { outline: none; border-color: #16a34a; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+
+/* Buttons */
+.btn {
+  display: inline-block; padding: 10px 22px; border-radius: 8px;
+  border: none; cursor: pointer; font-family: inherit; font-size: 1rem;
+  font-weight: 700; text-decoration: none; margin-top: 12px;
+}
+.btn-primary { background: #16a34a; color: #fff; }
+.btn-primary:hover { background: #15803d; }
+.btn-primary:disabled { background: #9ca3af; cursor: not-allowed; }
+.btn-outline { background: transparent; color: #a7f3d0; border: 1.5px solid #a7f3d0; margin-top: 0; padding: 4px 14px; }
+.btn-google {
+  background: #fff; color: #333; border: 1.5px solid #d1d5db;
+  display: inline-flex; align-items: center; gap: 10px; padding: 12px 28px;
+}
+.btn-google:hover { background: #f8fafc; }
+
+/* Alerts & badges */
+.alert { padding: 12px 16px; border-radius: 8px; margin: 12px 0; }
+.alert-success { background: #dcfce7; color: #166534; }
+.alert-error { background: #fee2e2; color: #991b1b; }
+.alert-info { background: #e0f2fe; color: #075985; }
+.badge { padding: 3px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; }
+.badge-green { background: #dcfce7; color: #166534; }
+.badge-yellow { background: #fef9c3; color: #854d0e; }
+.badge-red { background: #fee2e2; color: #991b1b; }
+.badge-gray { background: #e5e7eb; color: #374151; }
+
+/* Tables */
+.table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.table th { background: #14532d; color: #fff; padding: 10px; text-align: right; }
+.table td { padding: 10px; border-bottom: 1px solid #e5e7eb; }
+.table tr:last-child td { border-bottom: none; }
+
+/* Candidates & progress */
+.candidate { cursor: pointer; transition: box-shadow 0.15s; }
+.candidate:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+.candidate.selected { border: 2px solid #16a34a; }
+.candidate-photo { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; margin-bottom: 8px; }
+.progress { background: #e5e7eb; border-radius: 999px; height: 10px; overflow: hidden; min-width: 120px; }
+.progress-bar { background: #16a34a; height: 100%; border-radius: 999px; transition: width 0.3s; }
