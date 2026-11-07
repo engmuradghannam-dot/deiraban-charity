@@ -1,4 +1,6 @@
-const BASE = "/api";
+// في بيئة التطوير المحلية: يبقى فارغاً ويستخدم /api عبر vite proxy
+// في بيئة النشر على Render: يُضبط VITE_API_BASE وقت البناء إلى رابط خدمة الـ backend
+const BASE = (import.meta.env.VITE_API_BASE || "") + "/api";
 
 async function request(path) {
   const res = await fetch(`${BASE}${path}`);
