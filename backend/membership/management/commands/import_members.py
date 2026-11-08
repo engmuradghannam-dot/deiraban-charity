@@ -8,7 +8,7 @@ from membership.models import Family, Member
 
 
 class Command(BaseCommand):
-    help = "استيراد الأعضاء من ملف data/members.csv (مُستخرج من كشف الجمعية الأصلي)"
+    help = "استيراد الأعضاء من ملف data/members.csv (يدعم أعمدة y2019_base حتى y2026)"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -24,10 +24,9 @@ class Command(BaseCommand):
             self.stderr.write(self.style.ERROR(f"الملف غير موجود: {csv_path}"))
             return
 
-        # القيم المستخرجة من PDF قد تحوي مسافات زائدة ناتجة عن قراءة OCR
-        # (مثال: "غ ي فاعل" بدل "غير فاعل")، لذلك نقارن بعد إزالة المسافات
         status_map = {
             "عضوفاعل": Member.STATUS_ACTIVE,
+            "فاعل": Member.STATUS_ACTIVE,
             "غيرفاعل": Member.STATUS_INACTIVE,
             "غيفاعل": Member.STATUS_INACTIVE,
             "جديد": Member.STATUS_NEW,
@@ -52,9 +51,6 @@ class Command(BaseCommand):
                     raw_status = (row.get("status") or "").strip()
                     normalized_status = raw_status.replace(" ", "")
                     status = status_map.get(normalized_status, Member.STATUS_NEW)
-                    if normalized_status not in status_map and raw_status:
-                        # نحتفظ بالقيمة الأصلية في الملاحظات لمراجعتها لاحقاً
-                        pass
 
                     member, was_created = Member.objects.update_or_create(
                         membership_number=number,
@@ -69,6 +65,7 @@ class Command(BaseCommand):
                             "sub_2023": (row.get("y2023") or "").strip(),
                             "sub_2024": (row.get("y2024") or "").strip(),
                             "sub_2025": (row.get("y2025") or "").strip(),
+                            "sub_2026": (row.get("y2026") or "").strip(),
                         },
                     )
                     created += int(was_created)

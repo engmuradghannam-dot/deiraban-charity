@@ -31,4 +31,5 @@ class MemberSerializer(serializers.ModelSerializer):
             "sub_2023",
             "sub_2024",
             "sub_2025",
+            "sub_2026",
         ]

@@ -51,6 +51,7 @@ class Member(models.Model):
     sub_2023 = models.CharField(max_length=20, blank=True, default="")
     sub_2024 = models.CharField(max_length=20, blank=True, default="")
     sub_2025 = models.CharField(max_length=20, blank=True, default="")
+    sub_2026 = models.CharField(max_length=20, blank=True, default="")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -73,4 +74,5 @@ class Member(models.Model):
             "2023": self.sub_2023,
             "2024": self.sub_2024,
             "2025": self.sub_2025,
+            "2026": self.sub_2026,
         }
