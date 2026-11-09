@@ -1,19 +1,22 @@
-// في بيئة التطوير المحلية: يبقى فارغاً ويستخدم /api عبر vite proxy
-// في بيئة النشر على Render: يُضبط VITE_API_BASE وقت البناء إلى رابط خدمة الـ backend
-const BASE = (import.meta.env.VITE_API_BASE || "") + "/api";
+// هذه الطبقة مخصّصة لأدوات سجل الأعضاء الإدارية، ومساراتها محمية بصلاحيات الإدارة.
+const API_ROOT = import.meta.env.VITE_API_URL || "/api";
+const BASE = API_ROOT.endsWith("/api") ? API_ROOT : `${API_ROOT.replace(/\/$/, "")}/api`;
 
 async function request(path) {
-  const res = await fetch(`${BASE}${path}`);
-  if (!res.ok) throw new Error(`فشل الطلب: ${res.status}`);
-  return res.json();
+  const token = localStorage.getItem("access");
+  const response = await fetch(`${BASE}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) throw new Error(`فشل الطلب: ${response.status}`);
+  return response.json();
 }
 
 export function getStats() {
-  return request("/members/stats/");
+  return request("/registry/members/stats/");
 }
 
 export function getFamilies() {
-  return request("/families/?page_size=200");
+  return request("/registry/families/?page_size=200");
 }
 
 export function getMembers({ search = "", family = "", status = "", page = 1 } = {}) {
@@ -23,5 +26,5 @@ export function getMembers({ search = "", family = "", status = "", page = 1 } =
   if (status) params.set("status", status);
   params.set("page", page);
   params.set("page_size", 25);
-  return request(`/members/?${params.toString()}`);
+  return request(`/registry/members/?${params.toString()}`);
 }
