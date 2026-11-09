@@ -1,8 +1,11 @@
 import axios from 'axios'
 
-const baseURL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api'
+const configuredApi = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '')
+const baseURL = configuredApi
+  ? (configuredApi.endsWith('/api') ? configuredApi : `${configuredApi}/api`)
+  : '/api'
 
-const api = axios.create({ baseURL })
+const api = axios.create({ baseURL, timeout: 20000 })
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('access')
@@ -10,27 +13,28 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// تحديث الـ token تلقائياً عند انتهائه
 api.interceptors.response.use(
-  (res) => res,
+  (response) => response,
   async (error) => {
     const original = error.config
-    if (error.response?.status === 401 && !original._retry && localStorage.getItem('refresh')) {
+    if (error.response?.status === 401 && original && !original._retry && localStorage.getItem('refresh')) {
       original._retry = true
       try {
         const { data } = await axios.post(`${baseURL}/auth/token/refresh/`, {
           refresh: localStorage.getItem('refresh'),
         })
         localStorage.setItem('access', data.access)
+        original.headers = original.headers || {}
         original.headers.Authorization = `Bearer ${data.access}`
         return api(original)
       } catch {
-        localStorage.clear()
-        window.location.href = '/login'
+        localStorage.removeItem('access')
+        localStorage.removeItem('refresh')
+        if (window.location.pathname !== '/login') window.location.assign('/login')
       }
     }
     return Promise.reject(error)
-  }
+  },
 )
 
 export default api

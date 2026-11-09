@@ -2,14 +2,12 @@ from rest_framework.permissions import BasePermission
 
 
 class IsApprovedMember(BasePermission):
-    """يسمح فقط للعضو المعتمد (بعد موافقة الإدارة)."""
-    message = 'يجب أن تكون عضواً معتمداً في الجمعية.'
+    """يسمح بالتصويت فقط لحساب معتمد مرتبط بعضو فاعل في سجل الجمعية."""
+
+    message = "يجب أن يكون حسابك معتمداً ومرتبطاً بعضو فاعل في سجل الجمعية للتصويت."
 
     def has_permission(self, request, view):
-        member = getattr(request.user, 'member_profile', None)
-        return bool(
-            request.user
-            and request.user.is_authenticated
-            and member
-            and member.status == 'approved'
-        )
+        if not request.user or not request.user.is_authenticated:
+            return False
+        member = getattr(request.user, "member_profile", None)
+        return bool(member and member.is_eligible_to_vote)

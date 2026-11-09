@@ -5,13 +5,21 @@ services:
     plan: free
     rootDir: backend
     buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py import_members"
-    startCommand: "gunicorn deraban.wsgi:application"
+    startCommand: "gunicorn config.wsgi:application"
     envVars:
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: DJANGO_DEBUG
         value: "0"
       - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CALLBACK_URL
+        sync: false
+      - key: DATABASE_URL
         sync: false
 
   - type: web
@@ -21,7 +29,9 @@ services:
     buildCommand: "npm install && npm run build"
     staticPublishPath: dist
     envVars:
-      - key: VITE_API_BASE
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_GOOGLE_CLIENT_ID
         sync: false
     routes:
       - type: rewrite

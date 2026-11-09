@@ -1,11 +1,14 @@
+from django.db.models import Q
 from rest_framework import generics, permissions
-from .models import DonationCampaign, Donation
-from .serializers import (CampaignSerializer, DonationCreateSerializer,
-                          MyDonationSerializer)
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
+
+from .models import Donation, DonationCampaign
+from .serializers import CampaignSerializer, DonationCreateSerializer, MyDonationSerializer
 
 
 class CampaignListView(generics.ListAPIView):
-    """حملات التبرع المفعّلة (متاحة للجميع)."""
+    """الحملات النشطة للعرض العام."""
+
     serializer_class = CampaignSerializer
     permission_classes = [permissions.AllowAny]
 
@@ -14,21 +17,28 @@ class CampaignListView(generics.ListAPIView):
 
 
 class DonationCreateView(generics.CreateAPIView):
-    """تسجيل تبرع — العضو مسجل باسمه، والزائر يكتب اسمه."""
+    """تسجيل نية التبرع؛ لا يتم تأكيد القبض إلا بواسطة الإدارة."""
+
     serializer_class = DonationCreateSerializer
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
 
     def perform_create(self, serializer):
         request = self.request
-        member = (getattr(request.user, 'member_profile', None)
-                  if request.user.is_authenticated else None)
-        is_online = serializer.validated_data.get('method') == 'online'
-        if member and not serializer.validated_data.get('donor_name'):
-            serializer.save(member=member,
-                            status='pending' if is_online else 'completed')
-        else:
-            serializer.save(member=member,
-                            status='pending' if is_online else 'completed')
+        user = request.user if request.user.is_authenticated else None
+        member = getattr(user, "member_profile", None) if user else None
+        donor_name = serializer.validated_data.get("donor_name", "").strip()
+        if not donor_name and member:
+            donor_name = member.full_name
+        if not donor_name and user:
+            donor_name = user.get_full_name().strip() or user.email or user.get_username()
+        serializer.save(
+            member=member,
+            user=user,
+            donor_name=donor_name,
+            status=Donation.Status.PENDING,
+            currency="JOD",
+        )
 
 
 class MyDonationsView(generics.ListAPIView):
@@ -36,7 +46,8 @@ class MyDonationsView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        member = getattr(self.request.user, 'member_profile', None)
-        if not member:
-            return Donation.objects.none()
-        return Donation.objects.filter(member=member)
+        member = getattr(self.request.user, "member_profile", None)
+        query = Q(user=self.request.user)
+        if member:
+            query |= Q(member=member)
+        return Donation.objects.filter(query).select_related("campaign").distinct()

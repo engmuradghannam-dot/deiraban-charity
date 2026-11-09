@@ -1,8 +1,13 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import api from '../api/client.js'
 
 const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
+
+function clearAuthTokens() {
+  localStorage.removeItem('access')
+  localStorage.removeItem('refresh')
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -13,8 +18,13 @@ export function AuthProvider({ children }) {
     try {
       const { data } = await api.get('/members/me/')
       setMember(data)
-    } catch {
-      setMember(null)
+      return data
+    } catch (error) {
+      if (error.response?.status === 404) {
+        setMember(null)
+        return null
+      }
+      throw error
     }
   }, [])
 
@@ -24,28 +34,36 @@ export function AuthProvider({ children }) {
     localStorage.setItem('refresh', data.refresh)
     const me = await api.get('/auth/user/')
     setUser(me.data)
-    await loadMember()
+    await loadMember().catch(() => null)
   }, [loadMember])
 
   const logout = useCallback(() => {
-    localStorage.clear()
+    clearAuthTokens()
     setUser(null)
     setMember(null)
   }, [])
 
   useEffect(() => {
-    (async () => {
-      if (localStorage.getItem('access')) {
-        try {
+    let mounted = true
+    ;(async () => {
+      try {
+        if (localStorage.getItem('access')) {
           const me = await api.get('/auth/user/')
+          if (!mounted) return
           setUser(me.data)
-          await loadMember()
-        } catch {
-          localStorage.clear()
+          await loadMember().catch(() => null)
         }
+      } catch {
+        clearAuthTokens()
+        if (mounted) {
+          setUser(null)
+          setMember(null)
+        }
+      } finally {
+        if (mounted) setLoading(false)
       }
-      setLoading(false)
     })()
+    return () => { mounted = false }
   }, [loadMember])
 
   return (
