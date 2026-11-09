@@ -1,0 +1,163 @@
+"""Google Sheets-backed domain repository with an offline fake for tests.
+
+Authentication/session data remains in Django. This module only stores domain rows.
+"""
+from __future__ import annotations
+
+import json
+import os
+import uuid
+from datetime import UTC, date, datetime
+from decimal import Decimal
+from typing import Any
+
+TAB_HEADERS = {
+    "members": ["id", "user_id", "membership_number", "full_name", "family_name", "phone", "membership_type", "status", "created_at"],
+    "donations": ["id", "campaign_id", "member_id", "user_id", "donor_name", "donor_phone", "amount", "currency", "method", "status", "notes", "created_at"],
+    "elections": ["id", "title", "description", "max_choices", "starts_at", "ends_at", "is_active", "results_public", "created_at", "candidates_json"],
+    "votes": ["id", "election_id", "voter_id", "submitted_at", "candidate_ids_json"],
+    "campaigns": ["id", "title", "description", "goal_amount", "is_active", "created_at"],
+}
+
+
+def _string(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    return str(value)
+
+
+def _bool(value: Any) -> bool:
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+class InMemorySheetsClient:
+    """A deterministic Sheets-like client used by unit tests; never performs I/O."""
+    def __init__(self, rows: dict[str, list[dict[str, Any]]] | None = None):
+        self.rows = {tab: list(values) for tab, values in (rows or {}).items()}
+
+    def read_rows(self, tab: str) -> list[dict[str, Any]]:
+        return [dict(row) for row in self.rows.get(tab, [])]
+
+    def append_row(self, tab: str, row: dict[str, Any]) -> dict[str, Any]:
+        self.rows.setdefault(tab, []).append(dict(row))
+        return dict(row)
+
+
+class GoogleSheetsClient:
+    """Small adapter around Sheets API v4. Imports are lazy so disabled deployments need no credentials."""
+    def __init__(self, spreadsheet_id: str | None = None, credentials_json: str | None = None, service: Any = None):
+        self.spreadsheet_id = spreadsheet_id or os.getenv("GOOGLE_SHEETS_SPREADSHEET_ID", "").strip()
+        self.credentials_json = credentials_json or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+        if not self.spreadsheet_id or not self.credentials_json:
+            raise RuntimeError("SHEETS_STORAGE_ENABLED requires GOOGLE_SERVICE_ACCOUNT_JSON and GOOGLE_SHEETS_SPREADSHEET_ID")
+        if service is not None:
+            self.service = service
+        else:
+            try:
+                from google.oauth2.service_account import Credentials
+                from googleapiclient.discovery import build
+            except ImportError as exc:
+                raise RuntimeError("Install google-auth and google-api-python-client for Sheets storage") from exc
+            info = json.loads(self.credentials_json)
+            credentials = Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets"])
+            self.service = build("sheets", "v4", credentials=credentials, cache_discovery=False)
+
+    def read_rows(self, tab: str) -> list[dict[str, Any]]:
+        result = self.service.spreadsheets().values().get(
+            spreadsheetId=self.spreadsheet_id, range=f"'{tab}'!A:Z"
+        ).execute()
+        values = result.get("values", [])
+        if not values:
+            return []
+        headers = values[0]
+        return [dict(zip(headers, row + [""] * (len(headers) - len(row)))) for row in values[1:]]
+
+    def append_row(self, tab: str, row: dict[str, Any]) -> dict[str, Any]:
+        headers = TAB_HEADERS[tab]
+        self.service.spreadsheets().values().append(
+            spreadsheetId=self.spreadsheet_id,
+            range=f"'{tab}'!A:A",
+            valueInputOption="USER_ENTERED",
+            insertDataOption="INSERT_ROWS",
+            body={"values": [[_string(row.get(header, "")) for header in headers]]},
+        ).execute()
+        return row
+
+
+class SheetsRepository:
+    def __init__(self, client: Any | None = None):
+        self.client = client or GoogleSheetsClient()
+
+    def _rows(self, tab: str) -> list[dict[str, Any]]:
+        return self.client.read_rows(tab)
+
+    def campaigns(self) -> list[dict[str, Any]]:
+        campaigns = []
+        donations = self._rows("donations")
+        for row in self._rows("campaigns"):
+            if not _bool(row.get("is_active")):
+                continue
+            completed = sum(Decimal(str(d.get("amount") or "0")) for d in donations if d.get("campaign_id") == row.get("id") and d.get("status") == "completed")
+            goal = Decimal(str(row["goal_amount"])) if row.get("goal_amount") else None
+            campaigns.append({**row, "collected": completed, "goal_amount": goal, "percent": round(float(completed / goal * 100), 1) if goal else None})
+        return campaigns
+
+    def member_for_user(self, user_id: Any) -> dict[str, Any] | None:
+        return next((r for r in self._rows("members") if r.get("user_id") == _string(user_id)), None)
+
+    def create_member(self, data: dict[str, Any]) -> dict[str, Any]:
+        row = {"id": uuid.uuid4().hex, "created_at": datetime.now(UTC).isoformat(), "status": "pending", **data}
+        return self.client.append_row("members", row)
+
+    def create_donation(self, data: dict[str, Any]) -> dict[str, Any]:
+        row = {"id": uuid.uuid4().hex, "created_at": datetime.now(UTC).isoformat(), "currency": "JOD", "status": "pending", **data}
+        return self.client.append_row("donations", row)
+
+    def donations_for_user(self, user_id: Any, member_id: Any = None) -> list[dict[str, Any]]:
+        return [r for r in self._rows("donations") if r.get("user_id") == _string(user_id) or (member_id is not None and r.get("member_id") == _string(member_id))]
+
+    def elections(self) -> list[dict[str, Any]]:
+        return self._with_candidates(self._rows("elections"))
+
+    def election(self, election_id: Any) -> dict[str, Any] | None:
+        return next((r for r in self.elections() if r.get("id") == _string(election_id)), None)
+
+    def _with_candidates(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        for row in rows:
+            raw = row.get("candidates_json", "[]")
+            try: row["candidates"] = json.loads(raw) if isinstance(raw, str) else raw
+            except (TypeError, ValueError): row["candidates"] = []
+        return rows
+
+    def has_voted(self, election_id: Any, voter_id: Any) -> bool:
+        return any(r.get("election_id") == _string(election_id) and r.get("voter_id") == _string(voter_id) for r in self._rows("votes"))
+
+    def record_vote(self, election_id: Any, voter_id: Any, candidate_ids: list[Any]) -> dict[str, Any]:
+        if self.has_voted(election_id, voter_id):
+            raise ValueError("duplicate_vote")
+        row = {"id": uuid.uuid4().hex, "election_id": _string(election_id), "voter_id": _string(voter_id), "submitted_at": datetime.now(UTC).isoformat(), "candidate_ids_json": json.dumps([_string(i) for i in candidate_ids])}
+        return self.client.append_row("votes", row)
+
+    def results(self, election_id: Any) -> tuple[list[dict[str, Any]], int, int]:
+        election_id = _string(election_id)
+        rows = [r for r in self._rows("votes") if r.get("election_id") == election_id]
+        counts: dict[str, int] = {}
+        for row in rows:
+            try: ids = json.loads(row.get("candidate_ids_json", "[]"))
+            except (TypeError, ValueError): ids = []
+            for cid in ids: counts[_string(cid)] = counts.get(_string(cid), 0) + 1
+        election = self.election(election_id) or {}
+        candidates = election.get("candidates", [])
+        result = [{**candidate, "votes": counts.get(_string(candidate.get("id")), 0)} for candidate in candidates]
+        result.sort(key=lambda r: (-r["votes"], r.get("name", "")))
+        return result, len(rows), sum(counts.values())
+
+
+def sheets_enabled() -> bool:
+    return os.getenv("SHEETS_STORAGE_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
