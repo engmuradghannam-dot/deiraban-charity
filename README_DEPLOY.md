@@ -19,6 +19,8 @@
 
 أضف نطاق الواجهة إلى Authorized JavaScript origins في Google Cloud Console، واستخدم نطاق الواجهة نفسه في `GOOGLE_CALLBACK_URL` و`CORS_ALLOWED_ORIGINS` بحسب إعداد Google OAuth. لا تضع أسرار Google في مستودع Git.
 
+عند استخدام زر `@react-oauth/google` الحالي بنمط popup و`auth-code`، يجب أن تكون قيمة `GOOGLE_CALLBACK_URL` في Render هي `postmessage`، بينما تكون قيمة `CORS_ALLOWED_ORIGINS` هي `https://deraban-frontend.onrender.com`، ويُضاف النطاق نفسه إلى Authorized JavaScript origins في Google Cloud Console.
+
 ## 4. تخزين الدومين في Google Sheets (اختياري)
 
 يمكن تفعيل مستودع Google Sheets للعضوية والحملات والتبرعات والانتخابات والأصوات مع إبقاء تسجيل الدخول والجلسات في Django وقاعدة بياناته:
