@@ -75,17 +75,23 @@ TEMPLATES = [{
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-_database_url = os.getenv("DATABASE_URL", "").strip()
-DATABASES = {
-    "default": (
+_database_url = os.getenv("DATABASE_URL", "").strip().strip('"').strip("'")
+_sqlite_database = {
+    "ENGINE": "django.db.backends.sqlite3",
+    "NAME": str(BASE_DIR / "db.sqlite3"),
+}
+try:
+    _database = (
         dj_database_url.parse(_database_url, conn_max_age=600, conn_health_checks=True)
         if _database_url
-        else {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": str(BASE_DIR / "db.sqlite3"),
-        }
+        else _sqlite_database
     )
-}
+except ValueError:
+    # Render may retain an empty/malformed optional DATABASE_URL variable.
+    # Sheets mode does not require a production SQL database for domain rows.
+    _database = _sqlite_database
+
+DATABASES = {"default": _database}
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
