@@ -75,11 +75,15 @@ TEMPLATES = [{
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
+_database_url = os.getenv("DATABASE_URL", "").strip()
 DATABASES = {
-    "default": dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=600,
-        conn_health_checks=True,
+    "default": (
+        dj_database_url.parse(_database_url, conn_max_age=600, conn_health_checks=True)
+        if _database_url
+        else {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": str(BASE_DIR / "db.sqlite3"),
+        }
     )
 }
 
