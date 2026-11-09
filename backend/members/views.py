@@ -12,7 +12,9 @@ from .serializers import MemberRegisterSerializer, MemberSerializer
 
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
-    callback_url = os.getenv("GOOGLE_CALLBACK_URL", "http://localhost:5173")
+    # @react-oauth/google uses popup auth-code flow. Google issues that code
+    # with the special postmessage redirect URI.
+    callback_url = os.getenv("GOOGLE_CALLBACK_URL", "postmessage")
     client_class = OAuth2Client
 
 
