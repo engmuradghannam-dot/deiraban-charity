@@ -35,7 +35,8 @@ function GoogleSignInButton() {
         navigate(destination ? `${destination.pathname}${destination.search || ''}` : '/account', { replace: true })
       } catch (error) {
         const detail = error.response?.data?.detail
-        setError(detail || 'تعذر إكمال تسجيل الدخول. تحقق من إعداد Google OAuth وحاول مرة أخرى.')
+        const status = error.response?.status ? ` (HTTP ${error.response.status})` : ''
+        setError(detail ? `${detail}${status}` : `تعذر الاتصال بخدمة تسجيل الدخول${status}. أعد المحاولة بعد لحظات.`)
       }
   }
 
