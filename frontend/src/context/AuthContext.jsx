@@ -51,6 +51,21 @@ export function AuthProvider({ children }) {
     await loadMember().catch(() => null)
   }, [loadMember])
 
+  const recoverMembershipNumber = useCallback(async (details) => {
+    const response = await fetch(`${baseURL}/auth/member-recovery/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(details),
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      const error = new Error(data.detail || 'تعذر العثور على رقم العضوية')
+      error.response = { status: response.status, data }
+      throw error
+    }
+    return data
+  }, [])
+
   const logout = useCallback(() => {
     clearAuthTokens()
     setUser(null)
@@ -80,7 +95,7 @@ export function AuthProvider({ children }) {
   }, [loadMember])
 
   return (
-    <AuthContext.Provider value={{ user, member, loading, loginWithMember, logout, loadMember }}>
+    <AuthContext.Provider value={{ user, member, loading, loginWithMember, recoverMembershipNumber, logout, loadMember }}>
       {children}
     </AuthContext.Provider>
   )

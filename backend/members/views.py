@@ -124,6 +124,46 @@ class MemberPasswordLogin(generics.GenericAPIView):
         })
 
 
+class MemberRecovery(generics.GenericAPIView):
+    """استرجاع رقم العضوية بعد مطابقة الاسم واسم العائلة."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        full_name = str(request.data.get("full_name", "")).strip()
+        family_name = str(request.data.get("family_name", "")).strip()
+        if not full_name or not family_name:
+            return Response({"detail": "اكتب الاسم الكامل واسم العائلة."}, status=status.HTTP_400_BAD_REQUEST)
+
+        repository = None
+        if sheets_enabled() or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip():
+            try:
+                repository = SheetsRepository()
+            except RuntimeError:
+                repository = None
+        row = repository.member_for_name(full_name, family_name) if repository else None
+        if row and row.get("membership_number"):
+            return Response({
+                "membership_number": str(row["membership_number"]),
+                "message": "تم العثور على رقم العضوية. استخدمه ككلمة مرور عند الدخول.",
+            })
+
+        from membership.models import Member as RegistryMember
+        registry = next(
+            (
+                item for item in RegistryMember.objects.select_related("family").all()
+                if normalize_name(item.full_name) == normalize_name(full_name)
+                and normalize_name(item.family.name) == normalize_name(family_name)
+            ),
+            None,
+        )
+        if registry:
+            return Response({
+                "membership_number": str(registry.membership_number),
+                "message": "تم العثور على رقم العضوية. استخدمه ككلمة مرور عند الدخول.",
+            })
+        return Response({"detail": "لم نجد سجلًا مطابقًا. تواصل مع الإدارة للتأكد من الاسم ورقم العضوية."}, status=status.HTTP_404_NOT_FOUND)
+
+
 class MyMemberView(generics.RetrieveAPIView):
     serializer_class = MemberSerializer
     permission_classes = [permissions.IsAuthenticated]

@@ -75,3 +75,12 @@ class MemberRegistrationTests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertIn("access", response.data)
         self.assertEqual(response.data["user"]["full_name"], "محمد أحمد الهاشمي")
+
+    def test_member_recovery_returns_membership_number_for_matching_name(self):
+        response = self.client.post(
+            "/api/auth/member-recovery/",
+            {"full_name": "محمد أحمد الهاشمي", "family_name": "آل الهاشمي"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["membership_number"], "A-220")
