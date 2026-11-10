@@ -125,9 +125,15 @@ class MyMemberView(generics.RetrieveAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         if sheets_enabled():
-            row = SheetsRepository().member_for_user(request.user.pk)
+            repository = SheetsRepository()
+            row = repository.member_for_user(request.user.pk)
+            if not row:
+                membership_number = str(request.user.username).removeprefix("member-")
+                row = repository.member_for_credentials(request.user.first_name, membership_number)
             if not row:
                 return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            row.setdefault("status", "pending")
+            row.setdefault("is_eligible_to_vote", row.get("status") in {"approved", "عضو فاعل", "active"})
             return Response(row)
         return super().retrieve(request, *args, **kwargs)
 

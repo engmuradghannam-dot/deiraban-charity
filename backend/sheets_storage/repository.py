@@ -129,6 +129,18 @@ class SheetsRepository:
     def _rows(self, tab: str) -> list[dict[str, Any]]:
         return self.client.read_rows(tab)
 
+    @staticmethod
+    def _member_view(row: dict[str, Any]) -> dict[str, Any]:
+        """Support the existing sheet columns: number, name, family."""
+        return {
+            **row,
+            "id": row.get("id") or row.get("number", ""),
+            "membership_number": row.get("membership_number") or row.get("number", ""),
+            "full_name": row.get("full_name") or row.get("name", ""),
+            "family_name": row.get("family_name") or row.get("family", ""),
+            "membership_type": row.get("membership_type") or row.get("status", "inactive"),
+        }
+
     def campaigns(self) -> list[dict[str, Any]]:
         campaigns = []
         donations = self._rows("donations")
@@ -148,9 +160,9 @@ class SheetsRepository:
         wanted_family_name = normalize_name(family_name)
         return next(
             (
-                r for r in self._rows("members")
-                if normalize_name(r.get("full_name")) == wanted_full_name
-                and normalize_name(r.get("family_name")) == wanted_family_name
+                self._member_view(r) for r in self._rows("members")
+                if normalize_name(r.get("full_name") or r.get("name")) == wanted_full_name
+                and normalize_name(r.get("family_name") or r.get("family")) == wanted_family_name
             ),
             None,
         )
@@ -160,9 +172,9 @@ class SheetsRepository:
         wanted_number = str(membership_number or "").strip().casefold()
         return next(
             (
-                r for r in self._rows("members")
-                if normalize_name(r.get("full_name")) == wanted_name
-                and str(r.get("membership_number", "")).strip().casefold() == wanted_number
+                self._member_view(r) for r in self._rows("members")
+                if normalize_name(r.get("full_name") or r.get("name")) == wanted_name
+                and str(r.get("membership_number") or r.get("number", "")).strip().casefold() == wanted_number
             ),
             None,
         )
