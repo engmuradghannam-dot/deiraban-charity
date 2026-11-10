@@ -1,3 +1,4 @@
+import logging
 import os
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
@@ -9,6 +10,8 @@ from sheets_storage import SheetsRepository, sheets_enabled
 from .models import Member
 from .serializers import MemberRegisterSerializer, MemberSerializer
 
+logger = logging.getLogger(__name__)
+
 
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
@@ -16,6 +19,16 @@ class GoogleLogin(SocialLoginView):
     # with the special postmessage redirect URI.
     callback_url = os.getenv("GOOGLE_CALLBACK_URL", "postmessage")
     client_class = OAuth2Client
+
+    def post(self, request, *args, **kwargs):
+        try:
+            return super().post(request, *args, **kwargs)
+        except Exception:
+            logger.exception("Google OAuth verification failed")
+            return Response(
+                {"detail": "تعذر التحقق من حساب Google. أعد المحاولة أو تحقق من إعداد OAuth."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class MyMemberView(generics.RetrieveAPIView):
