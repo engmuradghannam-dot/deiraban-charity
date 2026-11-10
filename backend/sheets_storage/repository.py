@@ -129,6 +129,15 @@ class SheetsRepository:
     def _rows(self, tab: str) -> list[dict[str, Any]]:
         return self.client.read_rows(tab)
 
+    def _member_tab(self) -> str:
+        configured = os.getenv("GOOGLE_SHEETS_MEMBERS_TAB", "الأعضاء").strip() or "الأعضاء"
+        if hasattr(self.client, "rows") and configured not in self.client.rows and "members" in self.client.rows:
+            return "members"
+        return configured
+
+    def _member_rows(self) -> list[dict[str, Any]]:
+        return self._rows(self._member_tab())
+
     @staticmethod
     def _member_view(row: dict[str, Any]) -> dict[str, Any]:
         """Support the existing sheet columns: number, name, family."""
@@ -153,14 +162,14 @@ class SheetsRepository:
         return campaigns
 
     def member_for_user(self, user_id: Any) -> dict[str, Any] | None:
-        return next((r for r in self._rows("members") if r.get("user_id") == _string(user_id)), None)
+        return next((self._member_view(r) for r in self._member_rows() if r.get("user_id") == _string(user_id)), None)
 
     def member_for_name(self, full_name: str, family_name: str) -> dict[str, Any] | None:
         wanted_full_name = normalize_name(full_name)
         wanted_family_name = normalize_name(family_name)
         return next(
             (
-                self._member_view(r) for r in self._rows("members")
+                self._member_view(r) for r in self._member_rows()
                 if normalize_name(r.get("full_name") or r.get("name")) == wanted_full_name
                 and normalize_name(r.get("family_name") or r.get("family")) == wanted_family_name
             ),
@@ -172,7 +181,7 @@ class SheetsRepository:
         wanted_number = str(membership_number or "").strip().casefold()
         return next(
             (
-                self._member_view(r) for r in self._rows("members")
+                self._member_view(r) for r in self._member_rows()
                 if (
                     normalize_name(r.get("full_name") or r.get("name")) == wanted_name
                     or normalize_name(
@@ -185,7 +194,7 @@ class SheetsRepository:
         )
 
     def member_for_id(self, member_id: Any) -> dict[str, Any] | None:
-        return next((r for r in self._rows("members") if str(r.get("id", "")) == str(member_id)), None)
+        return next((self._member_view(r) for r in self._member_rows() if str(r.get("id") or r.get("number", "")) == str(member_id)), None)
 
     def link_member_to_user(self, member_id: Any, user_id: Any, phone: str = "") -> dict[str, Any] | None:
         row = self.member_for_id(member_id)
@@ -196,13 +205,13 @@ class SheetsRepository:
             updates["phone"] = phone
         updater = getattr(self.client, "update_row_by_id", None)
         if updater:
-            return updater("members", str(member_id), updates)
+            return updater(self._member_tab(), str(member_id), updates)
         row.update(updates)
         return row
 
     def create_member(self, data: dict[str, Any]) -> dict[str, Any]:
         row = {"id": uuid.uuid4().hex, "created_at": datetime.now(UTC).isoformat(), "status": "pending", **data}
-        return self.client.append_row("members", row)
+        return self.client.append_row(self._member_tab(), row)
 
     def create_donation(self, data: dict[str, Any]) -> dict[str, Any]:
         row = {"id": uuid.uuid4().hex, "created_at": datetime.now(UTC).isoformat(), "currency": "JOD", "status": "pending", **data}
