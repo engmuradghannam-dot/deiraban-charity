@@ -1,7 +1,8 @@
 import axios from 'axios'
 
 const configuredApi = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '')
-const baseURL = configuredApi
+const isPlaceholderApi = /رابط-الخلفية|backend-host|your-backend|اسم-الواجهة/i.test(configuredApi)
+const baseURL = configuredApi && !isPlaceholderApi
   ? (configuredApi.endsWith('/api') ? configuredApi : `${configuredApi}/api`)
   : 'https://deraban-backend.onrender.com/api'
 
