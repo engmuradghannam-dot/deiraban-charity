@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { GoogleLogin } from '@react-oauth/google'
+import { useGoogleLogin } from '@react-oauth/google'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 
@@ -27,21 +27,27 @@ function GoogleSignInButton() {
   const location = useLocation()
   const [error, setError] = useState('')
 
-  const handleSuccess = async ({ credential }) => {
-    setError('')
-    try {
-      await loginWithGoogle(credential)
-      const destination = location.state?.from
-      navigate(destination ? `${destination.pathname}${destination.search || ''}` : '/account', { replace: true })
-    } catch {
-      setError('تعذر إكمال تسجيل الدخول. تحقق من إعداد Google OAuth وحاول مرة أخرى.')
-    }
-  }
+  const googleLogin = useGoogleLogin({
+    flow: 'implicit',
+    onSuccess: async ({ access_token: accessToken }) => {
+      setError('')
+      try {
+        await loginWithGoogle(accessToken)
+        const destination = location.state?.from
+        navigate(destination ? `${destination.pathname}${destination.search || ''}` : '/account', { replace: true })
+      } catch {
+        setError('تعذر إكمال تسجيل الدخول. تحقق من إعداد Google OAuth وحاول مرة أخرى.')
+      }
+    },
+    onError: () => setError('لم يكتمل تسجيل الدخول عبر Google.'),
+  })
 
   return (
     <div className="login-actions">
       {error && <div className="alert alert-error" role="alert">{error}</div>}
-      <GoogleLogin onSuccess={handleSuccess} onError={() => setError('لم يكتمل تسجيل الدخول عبر Google.')} useOneTap={false} />
+      <button className="button button-google" onClick={() => googleLogin()}>
+        المتابعة عبر Google
+      </button>
     </div>
   )
 }
