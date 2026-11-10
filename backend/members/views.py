@@ -18,18 +18,20 @@ logger = logging.getLogger(__name__)
 
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
-    # The frontend uses Google's implicit access-token flow.
+    # Accept Google's standard credential/id_token flow and the legacy access-token flow.
     callback_url = os.getenv("GOOGLE_CALLBACK_URL", "postmessage")
     client_class = OAuth2Client
 
     def post(self, request, *args, **kwargs):
         try:
+            id_token = str(request.data.get("id_token", "")).strip()
             access_token = str(request.data.get("access_token", "")).strip()
-            if not access_token:
-                return Response({"detail": "access_token مطلوب."}, status=status.HTTP_400_BAD_REQUEST)
+            if not id_token and not access_token:
+                return Response({"detail": "رمز Google مطلوب."}, status=status.HTTP_400_BAD_REQUEST)
+            token_param = {"id_token": id_token} if id_token else {"access_token": access_token}
             token_response = requests.get(
                 "https://oauth2.googleapis.com/tokeninfo",
-                params={"access_token": access_token},
+                params=token_param,
                 timeout=10,
             )
             if token_response.status_code != 200:
