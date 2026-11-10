@@ -173,7 +173,12 @@ class SheetsRepository:
         return next(
             (
                 self._member_view(r) for r in self._rows("members")
-                if normalize_name(r.get("full_name") or r.get("name")) == wanted_name
+                if (
+                    normalize_name(r.get("full_name") or r.get("name")) == wanted_name
+                    or normalize_name(
+                        f"{r.get('full_name') or r.get('name', '')} {r.get('family_name') or r.get('family', '')}"
+                    ) == wanted_name
+                )
                 and str(r.get("membership_number") or r.get("number", "")).strip().casefold() == wanted_number
             ),
             None,
