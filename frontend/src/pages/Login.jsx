@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 
+const adminWhatsApp = (import.meta.env.VITE_ADMIN_WHATSAPP || '962795018444').replace(/\D/g, '')
+const adminWhatsAppLink = `https://wa.me/${adminWhatsApp}?text=${encodeURIComponent('مرحبًا، أحتاج مساعدة في استرجاع رقم العضوية في جمعية ديرابان الخيرية.')}`
+
 export default function Login() {
   const { loginWithMember, recoverMembershipNumber } = useAuth()
   const navigate = useNavigate()
@@ -87,6 +90,9 @@ export default function Login() {
             <button type="button" className="button button-link" onClick={() => { setMode('login'); setError(''); setResult('') }}>
               العودة إلى تسجيل الدخول
             </button>
+            {error && <a className="button button-quiet button-wide" href={adminWhatsAppLink} target="_blank" rel="noreferrer">
+              تواصل مع الإدارة عبر WhatsApp
+            </a>}
             <p className="login-footnote">إذا لم تتطابق البيانات، راجع الإدارة مباشرة لتأكيد رقم العضوية.</p>
           </form>
         )}
