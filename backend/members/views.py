@@ -92,13 +92,20 @@ class RegisterMemberView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         if not sheets_enabled():
             return super().create(request, *args, **kwargs)
-        if SheetsRepository().member_for_user(request.user.pk):
-            raise serializers.ValidationError({"detail": "لديك طلب عضوية مسجل بالفعل."})
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        registry = serializer.validated_data.get("registry_member")
-        row = {"user_id": str(request.user.pk), "membership_number": serializer.validated_data["membership_number"], "full_name": serializer.validated_data["full_name"], "family_name": serializer.validated_data["family_name"], "phone": serializer.validated_data.get("phone", ""), "membership_type": serializer.validated_data["membership_type"], "status": Member.Status.PENDING}
-        return Response(SheetsRepository().create_member(row), status=status.HTTP_201_CREATED)
+        repository = SheetsRepository()
+        if repository.member_for_user(request.user.pk):
+            raise serializers.ValidationError({"detail": "لديك تسجيل عضوية مرتبط بهذا الحساب بالفعل."})
+        data = serializer.validated_data
+        existing = repository.member_for_name(data["full_name"], data["family_name"])
+        if existing:
+            if existing.get("user_id") and str(existing.get("user_id")) != str(request.user.pk):
+                raise serializers.ValidationError({"full_name": "هذا الاسم مسجل بالفعل بحساب Google آخر. تواصل مع الإدارة إذا كان الحساب لك."})
+            linked = repository.link_member_to_user(existing.get("id"), request.user.pk, data.get("phone", ""))
+            return Response({**(linked or existing), "registration_state": "existing", "message": "تم العثور على تسجيلك في سجل الجمعية. يمكنك المتابعة."}, status=status.HTTP_200_OK)
+        row = {"user_id": str(request.user.pk), "membership_number": "", "full_name": data["full_name"], "family_name": data["family_name"], "phone": data.get("phone", ""), "membership_type": Member.Type.INACTIVE, "status": Member.Status.PENDING}
+        return Response({**repository.create_member(row), "registration_state": "new", "message": "تم إنشاء طلب عضوية جديد، وسيتم مراجعته من الإدارة."}, status=status.HTTP_201_CREATED)
 
     def perform_create(self, serializer):
         if Member.objects.filter(user=self.request.user).exists():

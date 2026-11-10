@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 export default function CompleteProfile() {
   const { loadMember } = useAuth()
   const navigate = useNavigate()
-  const [form, setForm] = useState({ membership_number: '', full_name: '', family_name: '', phone: '' })
+  const [form, setForm] = useState({ full_name: '', family_name: '', phone: '' })
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -33,17 +33,14 @@ export default function CompleteProfile() {
     <section className="form-page">
       <form className="panel form-panel" onSubmit={submit}>
         <span className="eyebrow">التحقق من العضوية</span>
-        <h1>اربط حسابك بسجل الجمعية</h1>
-        <p className="muted">أدخل رقم العضوية واسمك كما يظهران في السجل الرسمي. لن تُتاح الانتخابات قبل مطابقة البيانات واعتماد الإدارة.</p>
+        <h1>أنشئ ملف عضويتك</h1>
+        <p className="muted">اكتب اسمك واسم عائلتك كما هما في سجل الجمعية. سنربط حسابك تلقائياً إذا وجدنا سجلاً مطابقاً، أو ننشئ طلب عضوية جديداً لمراجعة الإدارة.</p>
         {error && <div className="alert alert-error" role="alert">{error}</div>}
-        <label>رقم العضوية
-          <input required autoComplete="off" value={form.membership_number} onChange={set('membership_number')} />
-        </label>
         <div className="form-row">
-          <label>الاسم الكامل كما في السجل
+          <label>الاسم الكامل
             <input required autoComplete="name" value={form.full_name} onChange={set('full_name')} />
           </label>
-          <label>اسم العائلة كما في السجل
+          <label>اسم العائلة
             <input required value={form.family_name} onChange={set('family_name')} />
           </label>
         </div>
@@ -51,9 +48,9 @@ export default function CompleteProfile() {
           <input type="tel" autoComplete="tel" value={form.phone} onChange={set('phone')} />
         </label>
         <button className="button button-primary button-wide" disabled={saving}>
-          {saving ? 'جارٍ التحقق وإرسال الطلب…' : 'إرسال طلب ربط العضوية'}
+          {saving ? 'جارٍ حفظ بيانات العضوية…' : 'متابعة التسجيل'}
         </button>
-        <p className="form-note">إذا تعذر تطابق الاسم أو رقم العضوية، تواصل مع الإدارة لمراجعة السجل.</p>
+        <p className="form-note">يمكن إضافة ودفع الاشتراكات السنوية لاحقاً من صفحة العضوية بعد اعتماد الحساب.</p>
       </form>
     </section>
   )

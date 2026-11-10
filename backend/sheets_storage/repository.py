@@ -36,6 +36,14 @@ def _bool(value: Any) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def normalize_name(value: Any) -> str:
+    import re
+    import unicodedata
+    value = unicodedata.normalize("NFKC", str(value or "")).replace("ـ", "")
+    value = re.sub(r"[\u064B-\u065F\u0670]", "", value)
+    return " ".join(value.casefold().split())
+
+
 class InMemorySheetsClient:
     """A deterministic Sheets-like client used by unit tests; never performs I/O."""
     def __init__(self, rows: dict[str, list[dict[str, Any]]] | None = None):
@@ -47,6 +55,13 @@ class InMemorySheetsClient:
     def append_row(self, tab: str, row: dict[str, Any]) -> dict[str, Any]:
         self.rows.setdefault(tab, []).append(dict(row))
         return dict(row)
+
+    def update_row_by_id(self, tab: str, row_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
+        for row in self.rows.get(tab, []):
+            if str(row.get("id", "")) == str(row_id):
+                row.update(updates)
+                return dict(row)
+        return None
 
 
 class GoogleSheetsClient:
@@ -89,6 +104,23 @@ class GoogleSheetsClient:
         ).execute()
         return row
 
+    def update_row_by_id(self, tab: str, row_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
+        rows = self.read_rows(tab)
+        headers = TAB_HEADERS[tab]
+        for index, row in enumerate(rows, start=2):
+            if str(row.get("id", "")) != str(row_id):
+                continue
+            merged = {**row, **updates}
+            last_column = chr(64 + len(headers))
+            self.service.spreadsheets().values().update(
+                spreadsheetId=self.spreadsheet_id,
+                range=f"'{tab}'!A{index}:{last_column}{index}",
+                valueInputOption="USER_ENTERED",
+                body={"values": [[_string(merged.get(header, "")) for header in headers]]},
+            ).execute()
+            return merged
+        return None
+
 
 class SheetsRepository:
     def __init__(self, client: Any | None = None):
@@ -110,6 +142,34 @@ class SheetsRepository:
 
     def member_for_user(self, user_id: Any) -> dict[str, Any] | None:
         return next((r for r in self._rows("members") if r.get("user_id") == _string(user_id)), None)
+
+    def member_for_name(self, full_name: str, family_name: str) -> dict[str, Any] | None:
+        wanted_full_name = normalize_name(full_name)
+        wanted_family_name = normalize_name(family_name)
+        return next(
+            (
+                r for r in self._rows("members")
+                if normalize_name(r.get("full_name")) == wanted_full_name
+                and normalize_name(r.get("family_name")) == wanted_family_name
+            ),
+            None,
+        )
+
+    def member_for_id(self, member_id: Any) -> dict[str, Any] | None:
+        return next((r for r in self._rows("members") if str(r.get("id", "")) == str(member_id)), None)
+
+    def link_member_to_user(self, member_id: Any, user_id: Any, phone: str = "") -> dict[str, Any] | None:
+        row = self.member_for_id(member_id)
+        if not row:
+            return None
+        updates = {"user_id": _string(user_id)}
+        if phone and not row.get("phone"):
+            updates["phone"] = phone
+        updater = getattr(self.client, "update_row_by_id", None)
+        if updater:
+            return updater("members", str(member_id), updates)
+        row.update(updates)
+        return row
 
     def create_member(self, data: dict[str, Any]) -> dict[str, Any]:
         row = {"id": uuid.uuid4().hex, "created_at": datetime.now(UTC).isoformat(), "status": "pending", **data}

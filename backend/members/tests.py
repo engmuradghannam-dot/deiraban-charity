@@ -25,7 +25,6 @@ class MemberRegistrationTests(TestCase):
         response = self.client.post(
             "/api/members/register/",
             {
-                "membership_number": " A-220 ",
                 "full_name": "محمد  أحمد الهاشمي",
                 "family_name": "آل الهاشمي",
             },
@@ -37,18 +36,20 @@ class MemberRegistrationTests(TestCase):
         self.assertEqual(profile.status, Member.Status.PENDING)
         self.assertFalse(profile.is_eligible_to_vote)
 
-    def test_mismatched_name_cannot_claim_membership_number(self):
+    def test_new_name_creates_pending_profile_without_membership_number(self):
         response = self.client.post(
             "/api/members/register/",
             {
-                "membership_number": "A-220",
                 "full_name": "اسم مختلف",
                 "family_name": "آل الهاشمي",
             },
             format="json",
         )
-        self.assertEqual(response.status_code, 400)
-        self.assertFalse(Member.objects.filter(user=self.user).exists())
+        self.assertEqual(response.status_code, 201, response.data)
+        profile = Member.objects.get(user=self.user)
+        self.assertIsNone(profile.registry_member)
+        self.assertIsNone(profile.membership_number)
+        self.assertEqual(profile.status, Member.Status.PENDING)
 
     def test_approval_enables_voting_only_when_registry_is_active(self):
         profile = Member.objects.create(
