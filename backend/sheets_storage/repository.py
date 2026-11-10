@@ -203,6 +203,15 @@ class SheetsRepository:
         updates = {"user_id": _string(user_id)}
         if phone and not row.get("phone"):
             updates["phone"] = phone
+        # The legacy Arabic tab has no id/user_id columns. Authentication uses
+        # the stable membership number, so do not try to rewrite that source tab.
+        raw_row = next(
+            (item for item in self._member_rows() if str(item.get("id") or item.get("number", "")) == str(member_id)),
+            None,
+        )
+        if raw_row is not None and "user_id" not in raw_row and "id" not in raw_row:
+            row.update(updates)
+            return row
         updater = getattr(self.client, "update_row_by_id", None)
         if updater:
             return updater(self._member_tab(), str(member_id), updates)
