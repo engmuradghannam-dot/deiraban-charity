@@ -1,11 +1,14 @@
 import logging
 import os
+import requests
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
+from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from dj_rest_auth.registration.views import SocialLoginView
 from rest_framework import generics, permissions, serializers, status
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 from sheets_storage import SheetsRepository, sheets_enabled
 from .models import Member
 from .serializers import MemberRegisterSerializer, MemberSerializer
@@ -22,7 +25,37 @@ class GoogleLogin(SocialLoginView):
 
     def post(self, request, *args, **kwargs):
         try:
-            return super().post(request, *args, **kwargs)
+            access_token = str(request.data.get("access_token", "")).strip()
+            if not access_token:
+                return Response({"detail": "access_token مطلوب."}, status=status.HTTP_400_BAD_REQUEST)
+            token_response = requests.get(
+                "https://oauth2.googleapis.com/tokeninfo",
+                params={"access_token": access_token},
+                timeout=10,
+            )
+            if token_response.status_code != 200:
+                return Response({"detail": "رمز Google غير صالح أو منتهي."}, status=status.HTTP_400_BAD_REQUEST)
+            claims = token_response.json()
+            client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+            if not client_id or claims.get("aud") != client_id:
+                return Response({"detail": "رمز Google لا يخص هذا التطبيق."}, status=status.HTTP_400_BAD_REQUEST)
+            email = str(claims.get("email", "")).strip().lower()
+            if not email or claims.get("email_verified") not in {True, "true", "True"}:
+                return Response({"detail": "حساب Google لا يحتوي بريدًا موثقًا."}, status=status.HTTP_400_BAD_REQUEST)
+            User = get_user_model()
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={"username": email},
+            )
+            if created:
+                user.set_unusable_password()
+                user.first_name = str(claims.get("given_name", ""))[:150]
+                user.last_name = str(claims.get("family_name", ""))[:150]
+                user.save(update_fields=["password", "first_name", "last_name"])
+            if not user.is_active:
+                return Response({"detail": "هذا الحساب غير نشط."}, status=status.HTTP_403_FORBIDDEN)
+            refresh = RefreshToken.for_user(user)
+            return Response({"access": str(refresh.access_token), "refresh": str(refresh)})
         except Exception:
             logger.exception("Google OAuth verification failed")
             return Response(
