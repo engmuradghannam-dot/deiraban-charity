@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import api from '../api/client.js'
+import api, { baseURL } from '../api/client.js'
 
 const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
@@ -29,7 +29,17 @@ export function AuthProvider({ children }) {
   }, [])
 
   const loginWithGoogle = useCallback(async (googleToken) => {
-    const { data } = await api.post('/auth/google/', googleToken)
+    const response = await fetch(`${baseURL}/auth/google/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(googleToken),
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      const error = new Error(data.detail || 'Google login failed')
+      error.response = { status: response.status, data }
+      throw error
+    }
     localStorage.setItem('access', data.access)
     localStorage.setItem('refresh', data.refresh)
     const me = await api.get('/auth/user/')

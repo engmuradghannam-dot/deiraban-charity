@@ -6,6 +6,7 @@ const baseURL = configuredApi
   : 'https://deraban-backend.onrender.com/api'
 
 const api = axios.create({ baseURL, timeout: 20000 })
+export { baseURL }
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('access')
