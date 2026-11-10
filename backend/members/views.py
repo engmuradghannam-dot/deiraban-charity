@@ -40,7 +40,8 @@ class GoogleLogin(SocialLoginView):
             if not client_id or claims.get("aud") != client_id:
                 return Response({"detail": "رمز Google لا يخص هذا التطبيق."}, status=status.HTTP_400_BAD_REQUEST)
             email = str(claims.get("email", "")).strip().lower()
-            if not email or claims.get("email_verified") not in {True, "true", "True"}:
+            email_verified = claims.get("email_verified", claims.get("verified_email"))
+            if not email or email_verified not in {True, "true", "True"}:
                 return Response({"detail": "حساب Google لا يحتوي بريدًا موثقًا."}, status=status.HTTP_400_BAD_REQUEST)
             User = get_user_model()
             user, created = User.objects.get_or_create(
