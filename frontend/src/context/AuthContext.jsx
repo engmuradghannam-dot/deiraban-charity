@@ -28,8 +28,8 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const loginWithGoogle = useCallback(async (idToken) => {
-    const { data } = await api.post('/auth/google/', { id_token: idToken })
+  const loginWithGoogle = useCallback(async (accessToken) => {
+    const { data } = await api.post('/auth/google/', { access_token: accessToken })
     localStorage.setItem('access', data.access)
     localStorage.setItem('refresh', data.refresh)
     const me = await api.get('/auth/user/')
