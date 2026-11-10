@@ -56,7 +56,11 @@ class GoogleLogin(SocialLoginView):
             if not user.is_active:
                 return Response({"detail": "هذا الحساب غير نشط."}, status=status.HTTP_403_FORBIDDEN)
             refresh = RefreshToken.for_user(user)
-            return Response({"access": str(refresh.access_token), "refresh": str(refresh)})
+            return Response({
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "user": {"id": user.pk, "email": user.email, "first_name": user.first_name, "last_name": user.last_name},
+            })
         except Exception:
             logger.exception("Google OAuth verification failed")
             return Response(

@@ -7,6 +7,7 @@ export const useAuth = () => useContext(AuthContext)
 function clearAuthTokens() {
   localStorage.removeItem('access')
   localStorage.removeItem('refresh')
+  localStorage.removeItem('user_email')
 }
 
 export function AuthProvider({ children }) {
@@ -42,8 +43,10 @@ export function AuthProvider({ children }) {
     }
     localStorage.setItem('access', data.access)
     localStorage.setItem('refresh', data.refresh)
-    const me = await api.get('/auth/user/')
-    setUser(me.data)
+    if (data.user) {
+      localStorage.setItem('user_email', data.user.email || '')
+      setUser(data.user)
+    }
     await loadMember().catch(() => null)
   }, [loadMember])
 
@@ -58,9 +61,8 @@ export function AuthProvider({ children }) {
     ;(async () => {
       try {
         if (localStorage.getItem('access')) {
-          const me = await api.get('/auth/user/')
           if (!mounted) return
-          setUser(me.data)
+          setUser({ email: localStorage.getItem('user_email') || '' })
           await loadMember().catch(() => null)
         }
       } catch {
