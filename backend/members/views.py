@@ -79,7 +79,12 @@ class MemberPasswordLogin(generics.GenericAPIView):
         if not full_name or not membership_number:
             return Response({"detail": "اكتب اسم العضو ورقم العضوية."}, status=status.HTTP_400_BAD_REQUEST)
 
-        repository = SheetsRepository() if sheets_enabled() else None
+        repository = None
+        if sheets_enabled() or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip():
+            try:
+                repository = SheetsRepository()
+            except RuntimeError:
+                repository = None
         row = repository.member_for_credentials(full_name, membership_number) if repository else None
         registry = None
         if not row:
@@ -125,7 +130,12 @@ class MyMemberView(generics.RetrieveAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         if sheets_enabled():
-            repository = SheetsRepository()
+            try:
+                repository = SheetsRepository()
+            except RuntimeError:
+                repository = None
+            if repository is None:
+                return super().retrieve(request, *args, **kwargs)
             row = repository.member_for_user(request.user.pk)
             if not row:
                 membership_number = str(request.user.username).removeprefix("member-")
