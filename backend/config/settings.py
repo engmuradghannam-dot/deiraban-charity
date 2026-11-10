@@ -150,7 +150,7 @@ LOGIN_REDIRECT_URL = "/"
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "APP": {
-            "client_id": os.getenv("GOOGLE_CLIENT_ID", ""),
+            "client_id": os.getenv("GOOGLE_CLIENT_ID", "").strip() or "708875573840-vc4ug1oe97nm7bm590dat6h2f36b8f73.apps.googleusercontent.com",
             "secret": os.getenv("GOOGLE_CLIENT_SECRET", ""),
         },
         "SCOPE": ["profile", "email"],

@@ -35,8 +35,9 @@ function GoogleSignInButton() {
         await loginWithGoogle(accessToken)
         const destination = location.state?.from
         navigate(destination ? `${destination.pathname}${destination.search || ''}` : '/account', { replace: true })
-      } catch {
-        setError('تعذر إكمال تسجيل الدخول. تحقق من إعداد Google OAuth وحاول مرة أخرى.')
+      } catch (error) {
+        const detail = error.response?.data?.detail
+        setError(detail || 'تعذر إكمال تسجيل الدخول. تحقق من إعداد Google OAuth وحاول مرة أخرى.')
       }
     },
     onError: () => setError('لم يكتمل تسجيل الدخول عبر Google.'),

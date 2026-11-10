@@ -18,8 +18,7 @@ logger = logging.getLogger(__name__)
 
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
-    # @react-oauth/google uses popup auth-code flow. Google issues that code
-    # with the special postmessage redirect URI.
+    # The frontend uses Google's implicit access-token flow.
     callback_url = os.getenv("GOOGLE_CALLBACK_URL", "postmessage")
     client_class = OAuth2Client
 
@@ -36,8 +35,8 @@ class GoogleLogin(SocialLoginView):
             if token_response.status_code != 200:
                 return Response({"detail": "رمز Google غير صالح أو منتهي."}, status=status.HTTP_400_BAD_REQUEST)
             claims = token_response.json()
-            client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
-            if not client_id or claims.get("aud") != client_id:
+            client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip() or "708875573840-vc4ug1oe97nm7bm590dat6h2f36b8f73.apps.googleusercontent.com"
+            if claims.get("aud") != client_id:
                 return Response({"detail": "رمز Google لا يخص هذا التطبيق."}, status=status.HTTP_400_BAD_REQUEST)
             email = str(claims.get("email", "")).strip().lower()
             email_verified = claims.get("email_verified", claims.get("verified_email"))
