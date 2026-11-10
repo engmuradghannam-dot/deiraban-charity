@@ -1,5 +1,4 @@
 import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { GoogleOAuthProvider } from '@react-oauth/google'
 import { AuthProvider, useAuth } from './context/AuthContext.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import CompleteProfile from './pages/CompleteProfile.jsx'
@@ -9,23 +8,19 @@ import Elections from './pages/Elections.jsx'
 import Home from './pages/Home.jsx'
 import Login from './pages/Login.jsx'
 
-const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
-
 export default function App() {
   const application = (
     <AuthProvider>
       <BrowserRouter>
-        <ApplicationShell googleConfigured={Boolean(googleClientId)} />
+        <ApplicationShell />
       </BrowserRouter>
     </AuthProvider>
   )
 
-  return googleClientId
-    ? <GoogleOAuthProvider clientId={googleClientId}>{application}</GoogleOAuthProvider>
-    : application
+  return application
 }
 
-function ApplicationShell({ googleConfigured }) {
+function ApplicationShell() {
   const { user, member, loading, logout } = useAuth()
 
   return (
@@ -51,7 +46,7 @@ function ApplicationShell({ googleConfigured }) {
       <main className="page-content">
         <Routes>
           <Route path="/" element={<Home user={user} member={member} />} />
-          <Route path="/login" element={<Login googleConfigured={googleConfigured} />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/register" element={<RequireAuth><CompleteProfile /></RequireAuth>} />
           <Route path="/account" element={<RequireAuth><Dashboard /></RequireAuth>} />
           <Route path="/elections" element={<RequireAuth><Elections /></RequireAuth>} />

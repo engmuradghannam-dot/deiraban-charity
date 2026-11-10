@@ -8,6 +8,7 @@ function clearAuthTokens() {
   localStorage.removeItem('access')
   localStorage.removeItem('refresh')
   localStorage.removeItem('user_email')
+  localStorage.removeItem('member_full_name')
 }
 
 export function AuthProvider({ children }) {
@@ -29,22 +30,22 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const loginWithGoogle = useCallback(async (googleToken) => {
-    const response = await fetch(`${baseURL}/auth/google/`, {
+  const loginWithMember = useCallback(async (credentials) => {
+    const response = await fetch(`${baseURL}/auth/member-login/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(googleToken),
+      body: JSON.stringify(credentials),
     })
     const data = await response.json().catch(() => ({}))
     if (!response.ok) {
-      const error = new Error(data.detail || 'Google login failed')
+      const error = new Error(data.detail || 'تعذر تسجيل الدخول')
       error.response = { status: response.status, data }
       throw error
     }
     localStorage.setItem('access', data.access)
     localStorage.setItem('refresh', data.refresh)
     if (data.user) {
-      localStorage.setItem('user_email', data.user.email || '')
+      localStorage.setItem('member_full_name', data.user.full_name || '')
       setUser(data.user)
     }
     await loadMember().catch(() => null)
@@ -62,7 +63,7 @@ export function AuthProvider({ children }) {
       try {
         if (localStorage.getItem('access')) {
           if (!mounted) return
-          setUser({ email: localStorage.getItem('user_email') || '' })
+          setUser({ full_name: localStorage.getItem('member_full_name') || '' })
           await loadMember().catch(() => null)
         }
       } catch {
@@ -79,7 +80,7 @@ export function AuthProvider({ children }) {
   }, [loadMember])
 
   return (
-    <AuthContext.Provider value={{ user, member, loading, loginWithGoogle, logout, loadMember }}>
+    <AuthContext.Provider value={{ user, member, loading, loginWithMember, logout, loadMember }}>
       {children}
     </AuthContext.Provider>
   )

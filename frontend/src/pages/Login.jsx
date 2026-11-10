@@ -1,49 +1,51 @@
 import { useState } from 'react'
-import { GoogleLogin } from '@react-oauth/google'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 
-export default function Login({ googleConfigured }) {
-  return (
-    <section className="login-wrap">
-      <div className="login-card">
-        <span className="eyebrow">بوابة الأعضاء</span>
-        <h1>دخول آمن لحسابك</h1>
-        <p className="muted">استخدم حساب Google، ثم اربط ملفك برقم العضوية المسجل لدى الجمعية.</p>
-        {googleConfigured ? <GoogleSignInButton /> : (
-          <div className="alert alert-warning">
-            تسجيل الدخول غير مهيأ بعد. يحتاج مسؤول النظام إلى ضبط معرف Google OAuth في إعدادات الواجهة.
-          </div>
-        )}
-        <p className="login-footnote">لن يتم تمكين التصويت إلا بعد مطابقة سجل العضوية وموافقة الإدارة.</p>
-      </div>
-    </section>
-  )
-}
-
-function GoogleSignInButton() {
-  const { loginWithGoogle } = useAuth()
+export default function Login() {
+  const { loginWithMember } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const [form, setForm] = useState({ full_name: '', membership_number: '' })
   const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  const handleSuccess = async ({ credential }) => {
-      setError('')
-      try {
-        await loginWithGoogle({ id_token: credential })
-        const destination = location.state?.from
-        navigate(destination ? `${destination.pathname}${destination.search || ''}` : '/account', { replace: true })
-      } catch (error) {
-        const detail = error.response?.data?.detail
-        const status = error.response?.status ? ` (HTTP ${error.response.status})` : ''
-        setError(detail ? `${detail}${status}` : `تعذر الاتصال بخدمة تسجيل الدخول${status}. أعد المحاولة بعد لحظات.`)
-      }
+  const set = (key) => (event) => setForm((previous) => ({ ...previous, [key]: event.target.value }))
+
+  const submit = async (event) => {
+    event.preventDefault()
+    setError('')
+    setSaving(true)
+    try {
+      await loginWithMember(form)
+      const destination = location.state?.from
+      navigate(destination ? `${destination.pathname}${destination.search || ''}` : '/account', { replace: true })
+    } catch (err) {
+      const detail = err.response?.data?.detail
+      setError(detail || 'تعذر تسجيل الدخول. تأكد من الاسم ورقم العضوية.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
-    <div className="login-actions">
-      {error && <div className="alert alert-error" role="alert">{error}</div>}
-      <GoogleLogin onSuccess={handleSuccess} onError={() => setError('لم يكتمل تسجيل الدخول عبر Google.')} useOneTap={false} />
-    </div>
+    <section className="login-wrap">
+      <form className="login-card" onSubmit={submit}>
+        <span className="eyebrow">بوابة الأعضاء</span>
+        <h1>دخول الأعضاء</h1>
+        <p className="muted">اكتب اسمك كما هو مسجل لدى الجمعية، واستخدم رقم العضوية ككلمة مرور.</p>
+        {error && <div className="alert alert-error" role="alert">{error}</div>}
+        <label>اسم العضو الكامل
+          <input required autoComplete="name" value={form.full_name} onChange={set('full_name')} placeholder="مثال: محمد أحمد" />
+        </label>
+        <label>رقم العضوية
+          <input required autoComplete="current-password" value={form.membership_number} onChange={set('membership_number')} placeholder="رقم العضوية" />
+        </label>
+        <button className="button button-primary button-wide" disabled={saving}>
+          {saving ? 'جارٍ التحقق…' : 'تسجيل الدخول'}
+        </button>
+        <p className="login-footnote">إذا لم يكن لديك رقم عضوية، تواصل مع الإدارة لتسجيلك أولاً.</p>
+      </form>
+    </section>
   )
 }

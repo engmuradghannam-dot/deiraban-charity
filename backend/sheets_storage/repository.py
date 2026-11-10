@@ -155,6 +155,18 @@ class SheetsRepository:
             None,
         )
 
+    def member_for_credentials(self, full_name: str, membership_number: str) -> dict[str, Any] | None:
+        wanted_name = normalize_name(full_name)
+        wanted_number = str(membership_number or "").strip().casefold()
+        return next(
+            (
+                r for r in self._rows("members")
+                if normalize_name(r.get("full_name")) == wanted_name
+                and str(r.get("membership_number", "")).strip().casefold() == wanted_number
+            ),
+            None,
+        )
+
     def member_for_id(self, member_id: Any) -> dict[str, Any] | None:
         return next((r for r in self._rows("members") if str(r.get("id", "")) == str(member_id)), None)
 

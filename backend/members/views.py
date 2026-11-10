@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from sheets_storage import SheetsRepository, sheets_enabled
 from .models import Member
-from .serializers import MemberRegisterSerializer, MemberSerializer
+from .serializers import MemberRegisterSerializer, MemberSerializer, normalize_name
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +67,56 @@ class GoogleLogin(SocialLoginView):
                 {"detail": "تعذر التحقق من حساب Google. أعد المحاولة أو تحقق من إعداد OAuth."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+
+class MemberPasswordLogin(generics.GenericAPIView):
+    """تسجيل الدخول باستخدام اسم العضو ورقم العضوية ككلمة مرور."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        full_name = str(request.data.get("full_name", "")).strip()
+        membership_number = str(request.data.get("membership_number", "")).strip()
+        if not full_name or not membership_number:
+            return Response({"detail": "اكتب اسم العضو ورقم العضوية."}, status=status.HTTP_400_BAD_REQUEST)
+
+        repository = SheetsRepository() if sheets_enabled() else None
+        row = repository.member_for_credentials(full_name, membership_number) if repository else None
+        registry = None
+        if not row:
+            from membership.models import Member as RegistryMember
+            registry = next(
+                (
+                    item for item in RegistryMember.objects.select_related("family").all()
+                    if normalize_name(item.full_name) == normalize_name(full_name)
+                    and str(item.membership_number).strip().casefold() == membership_number.casefold()
+                ),
+                None,
+            )
+            if not registry:
+                return Response({"detail": "لم نجد عضوًا بهذا الاسم ورقم العضوية. راجع البيانات أو تواصل مع الإدارة."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        User = get_user_model()
+        user = None
+        if row and row.get("user_id"):
+            try:
+                user = User.objects.filter(pk=row["user_id"]).first()
+            except (TypeError, ValueError):
+                user = None
+        username = f"member-{membership_number}"
+        if user is None:
+            user, _ = User.objects.get_or_create(username=username, defaults={"first_name": full_name[:150]})
+        user.set_password(membership_number)
+        user.first_name = full_name[:150]
+        user.save(update_fields=["password", "first_name"])
+        if row and not row.get("user_id"):
+            repository.link_member_to_user(row.get("id"), user.pk)
+
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            "user": {"id": user.pk, "username": user.username, "full_name": full_name},
+        })
 
 
 class MyMemberView(generics.RetrieveAPIView):

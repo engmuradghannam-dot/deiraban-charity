@@ -65,3 +65,13 @@ class MemberRegistrationTests(TestCase):
         profile.status = Member.Status.APPROVED
         profile.save(update_fields=["status"])
         self.assertTrue(profile.is_eligible_to_vote)
+
+    def test_member_password_login_returns_jwt_for_matching_registry(self):
+        response = self.client.post(
+            "/api/auth/member-login/",
+            {"full_name": "محمد أحمد الهاشمي", "membership_number": "A-220"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIn("access", response.data)
+        self.assertEqual(response.data["user"]["full_name"], "محمد أحمد الهاشمي")
