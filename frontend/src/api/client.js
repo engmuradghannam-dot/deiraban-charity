@@ -3,7 +3,7 @@ import axios from 'axios'
 const configuredApi = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '')
 const baseURL = configuredApi
   ? (configuredApi.endsWith('/api') ? configuredApi : `${configuredApi}/api`)
-  : '/api'
+  : 'https://deraban-backend.onrender.com/api'
 
 const api = axios.create({ baseURL, timeout: 20000 })
 
