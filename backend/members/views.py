@@ -1,8 +1,6 @@
 import logging
 import os
 import requests
-from google.auth.transport import requests as google_requests
-from google.oauth2 import id_token as google_id_token
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from django.contrib.auth import get_user_model
@@ -31,22 +29,16 @@ class GoogleLogin(SocialLoginView):
             if not id_token and not access_token:
                 return Response({"detail": "رمز Google مطلوب."}, status=status.HTTP_400_BAD_REQUEST)
             client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip() or "708875573840-vc4ug1oe97nm7bm590dat6h2f36b8f73.apps.googleusercontent.com"
-            if id_token:
-                try:
-                    claims = google_id_token.verify_oauth2_token(id_token, google_requests.Request(), client_id)
-                except ValueError:
-                    return Response({"detail": "رمز Google غير صالح أو لا يخص هذا التطبيق."}, status=status.HTTP_400_BAD_REQUEST)
-            else:
-                token_response = requests.get(
-                    "https://oauth2.googleapis.com/tokeninfo",
-                    params={"access_token": access_token},
-                    timeout=10,
-                )
-                if token_response.status_code != 200:
-                    return Response({"detail": "رمز Google غير صالح أو منتهي."}, status=status.HTTP_400_BAD_REQUEST)
-                claims = token_response.json()
-                if claims.get("aud") != client_id:
-                    return Response({"detail": "رمز Google لا يخص هذا التطبيق."}, status=status.HTTP_400_BAD_REQUEST)
+            token_response = requests.get(
+                "https://oauth2.googleapis.com/tokeninfo",
+                params={"id_token": id_token} if id_token else {"access_token": access_token},
+                timeout=10,
+            )
+            if token_response.status_code != 200:
+                return Response({"detail": "رمز Google غير صالح أو منتهي."}, status=status.HTTP_400_BAD_REQUEST)
+            claims = token_response.json()
+            if claims.get("aud") != client_id:
+                return Response({"detail": "رمز Google لا يخص هذا التطبيق."}, status=status.HTTP_400_BAD_REQUEST)
             email = str(claims.get("email", "")).strip().lower()
             email_verified = claims.get("email_verified", claims.get("verified_email"))
             if not email or email_verified not in {True, "true", "True"}:
