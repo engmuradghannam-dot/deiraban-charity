@@ -222,6 +222,21 @@ class SheetsRepository:
         row = {"id": uuid.uuid4().hex, "created_at": datetime.now(UTC).isoformat(), "status": "pending", **data}
         return self.client.append_row(self._member_tab(), row)
 
+    def create_member_application(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Store a public registration request without assigning a membership number."""
+        row = {
+            "id": uuid.uuid4().hex,
+            "user_id": "",
+            "membership_number": "",
+            "membership_type": "inactive",
+            "status": "pending",
+            "created_at": datetime.now(UTC).isoformat(),
+            **data,
+        }
+        # The English members tab is retained as the review queue. Verified
+        # members remain in the Arabic الأعضاء tab and are never overwritten.
+        return self.client.append_row("members", row)
+
     def create_donation(self, data: dict[str, Any]) -> dict[str, Any]:
         row = {"id": uuid.uuid4().hex, "created_at": datetime.now(UTC).isoformat(), "currency": "JOD", "status": "pending", **data}
         return self.client.append_row("donations", row)

@@ -68,3 +68,9 @@ class MemberRegisterSerializer(serializers.ModelSerializer):
             Member.Type.ACTIVE if registry and registry.status == RegistryMember.STATUS_ACTIVE else Member.Type.INACTIVE
         )
         return attrs
+
+
+class PublicMemberApplicationSerializer(serializers.Serializer):
+    full_name = serializers.CharField(max_length=255, trim_whitespace=True)
+    family_name = serializers.CharField(max_length=100, trim_whitespace=True)
+    phone = serializers.CharField(max_length=20, required=False, allow_blank=True)

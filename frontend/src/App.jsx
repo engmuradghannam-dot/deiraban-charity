@@ -36,6 +36,7 @@ function ApplicationShell() {
         <nav className="site-nav" aria-label="القائمة الرئيسية">
           <NavLink to="/elections" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>الانتخابات</NavLink>
           <NavLink to="/donations" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>التبرعات</NavLink>
+          {!user && <NavLink to="/register" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>تسجيل عضو جديد</NavLink>}
           {user && <NavLink to="/account" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>عضويتي</NavLink>}
           {!loading && (user
             ? <button className="nav-button" onClick={logout}>تسجيل الخروج</button>
@@ -47,7 +48,7 @@ function ApplicationShell() {
         <Routes>
           <Route path="/" element={<Home user={user} member={member} />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<RequireAuth><CompleteProfile /></RequireAuth>} />
+          <Route path="/register" element={<CompleteProfile />} />
           <Route path="/account" element={<RequireAuth><Dashboard /></RequireAuth>} />
           <Route path="/elections" element={<RequireAuth><Elections /></RequireAuth>} />
           <Route path="/elections/:id" element={<RequireAuth><ElectionDetail /></RequireAuth>} />

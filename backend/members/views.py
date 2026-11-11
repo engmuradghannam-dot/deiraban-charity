@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from sheets_storage import SheetsRepository, sheets_enabled
 from .models import Member
-from .serializers import MemberRegisterSerializer, MemberSerializer, normalize_name
+from .serializers import MemberRegisterSerializer, MemberSerializer, PublicMemberApplicationSerializer, normalize_name
 
 logger = logging.getLogger(__name__)
 
@@ -193,9 +193,23 @@ class MyMemberView(generics.RetrieveAPIView):
 
 class RegisterMemberView(generics.CreateAPIView):
     serializer_class = MemberRegisterSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def create(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            if not sheets_enabled():
+                return Response({"detail": "التسجيل العام متاح عند تفعيل تخزين Google Sheets."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            serializer = PublicMemberApplicationSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            repository = SheetsRepository()
+            data = serializer.validated_data
+            if repository.member_for_name(data["full_name"], data["family_name"]):
+                return Response({"detail": "هذا الاسم موجود في سجل الجمعية. استخدم استرجاع رقم العضوية أو تواصل مع الإدارة."}, status=status.HTTP_409_CONFLICT)
+            application = repository.create_member_application(data)
+            return Response(
+                {**application, "message": "تم استلام طلب التسجيل، وستراجعه الإدارة وتحدد رقم العضوية لاحقًا."},
+                status=status.HTTP_201_CREATED,
+            )
         if not sheets_enabled():
             return super().create(request, *args, **kwargs)
         serializer = self.get_serializer(data=request.data)

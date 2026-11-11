@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 
 const adminWhatsApp = (import.meta.env.VITE_ADMIN_WHATSAPP || '962795018444').replace(/\D/g, '')
@@ -71,6 +71,7 @@ export default function Login() {
               نسيت رقم العضوية؟
             </button>
             <p className="login-footnote">إذا لم تجد بياناتك، تواصل مباشرة مع إدارة الجمعية لمساعدتك.</p>
+            <Link className="button button-quiet button-wide" to="/register">تسجيل عضو جديد</Link>
           </form>
         ) : (
           <form onSubmit={recover}>
