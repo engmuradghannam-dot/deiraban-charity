@@ -188,6 +188,25 @@ class SheetsRepository:
             None,
         )
 
+    def search_members(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
+        wanted = normalize_name(query)
+        if len(wanted) < 2:
+            return []
+        results = []
+        for raw in self._member_rows():
+            full_name = raw.get("full_name") or raw.get("name") or ""
+            family_name = raw.get("family_name") or raw.get("family") or ""
+            if normalize_name(full_name).startswith(wanted):
+                member = self._member_view(raw)
+                results.append({
+                    "id": str(member.get("id", "")),
+                    "full_name": full_name,
+                    "family_name": family_name,
+                })
+                if len(results) >= limit:
+                    break
+        return results
+
     def member_for_credentials(self, full_name: str, membership_number: str) -> dict[str, Any] | None:
         wanted_name = normalize_name(full_name)
         wanted_number = str(membership_number or "").strip().casefold()

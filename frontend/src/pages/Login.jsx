@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
+import { baseURL } from '../api/client.js'
 
 const adminWhatsApp = (import.meta.env.VITE_ADMIN_WHATSAPP || '962795018444').replace(/\D/g, '')
 const adminWhatsAppLink = `https://wa.me/${adminWhatsApp}?text=${encodeURIComponent('مرحبًا، أحتاج مساعدة في استرجاع رقم العضوية في جمعية ديرابان الخيرية.')}`
@@ -10,25 +11,51 @@ export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const [mode, setMode] = useState('login')
-  const [form, setForm] = useState({ full_name: '', membership_number: '' })
+  const [form, setForm] = useState({ full_name: '', member_id: '' })
+  const [suggestions, setSuggestions] = useState([])
   const [recovery, setRecovery] = useState({ full_name: '', family_name: '' })
   const [error, setError] = useState('')
   const [result, setResult] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const set = (key) => (event) => setForm((previous) => ({ ...previous, [key]: event.target.value }))
+  const setName = async (event) => {
+    const full_name = event.target.value
+    setForm({ full_name, member_id: '' })
+    setError('')
+    if (full_name.trim().length < 2) {
+      setSuggestions([])
+      return
+    }
+    try {
+      const response = await fetch(`${baseURL}/auth/member-search/?q=${encodeURIComponent(full_name.trim())}`)
+      const data = await response.json().catch(() => ({}))
+      setSuggestions(data.results || [])
+    } catch {
+      setSuggestions([])
+    }
+  }
+
+  const chooseSuggestion = (member) => {
+    setForm({ full_name: `${member.full_name} ${member.family_name}`.trim(), member_id: member.id })
+    setSuggestions([])
+    setError('')
+  }
   const setRecoveryField = (key) => (event) => setRecovery((previous) => ({ ...previous, [key]: event.target.value }))
 
   const submit = async (event) => {
     event.preventDefault()
     setError('')
+    if (!form.member_id) {
+      setError('اكتب جزءًا من الاسم ثم اختر اسمك من القائمة.')
+      return
+    }
     setSaving(true)
     try {
       await loginWithMember(form)
       const destination = location.state?.from
       navigate(destination ? `${destination.pathname}${destination.search || ''}` : '/account', { replace: true })
     } catch (err) {
-      setError(err.response?.data?.detail || 'تعذر تسجيل الدخول. تأكد من الاسم ورقم العضوية.')
+      setError(err.response?.data?.detail || 'تعذر تسجيل الدخول. اختر اسمك من القائمة وحاول مرة أخرى.')
     } finally {
       setSaving(false)
     }
@@ -56,14 +83,16 @@ export default function Login() {
         {mode === 'login' ? (
           <form onSubmit={submit}>
             <h1>دخول الأعضاء</h1>
-            <p className="muted">اكتب اسمك كما هو مسجل لدى الجمعية، واستخدم رقم العضوية ككلمة مرور.</p>
+            <p className="muted">اكتب جزءًا من اسمك، ثم اختر الاسم الصحيح من القائمة للدخول دون إدخال رقم العضوية.</p>
             {error && <div className="alert alert-error" role="alert">{error}</div>}
             <label>اسم العضو الكامل
-              <input required autoComplete="name" value={form.full_name} onChange={set('full_name')} placeholder="مثال: محمد احمد" />
+              <input required autoComplete="name" value={form.full_name} onChange={setName} placeholder="مثال: مراد" />
             </label>
-            <label>رقم العضوية
-              <input required autoComplete="current-password" value={form.membership_number} onChange={set('membership_number')} placeholder="رقم العضوية" />
-            </label>
+            {suggestions.length > 0 && <div className="member-suggestions" role="listbox" aria-label="أسماء الأعضاء المطابقة">
+              {suggestions.map((member) => <button type="button" className="member-suggestion" key={member.id} onClick={() => chooseSuggestion(member)}>
+                <strong>{member.full_name}</strong><span>{member.family_name}</span>
+              </button>)}
+            </div>}
             <button className="button button-primary button-wide" disabled={saving}>
               {saving ? 'جارٍ التحقق…' : 'تسجيل الدخول'}
             </button>

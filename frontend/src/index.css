@@ -66,6 +66,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .button-google { width: 100%; min-height: 49px; color: #34433a; border-color: #dfe4dc; background: #fff; }
 .button-google:hover:not(:disabled) { box-shadow: 0 7px 18px rgba(30,45,35,.08); }
 .button-wide { width: 100%; }
+.member-suggestions { display: grid; gap: 6px; margin-top: 6px; text-align: right; }
+.member-suggestion { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; color: var(--green); background: #fff; font-family: inherit; cursor: pointer; }
+.member-suggestion:hover { border-color: var(--green); background: #f1f7f2; }
+.member-suggestion span { color: var(--muted); font-size: 12px; }
 .welcome-note { margin-top: 18px !important; color: #e7e8d8 !important; font-size: 12px !important; }
 .hero-seal { position: relative; z-index: 1; display: flex; width: clamp(175px, 22vw, 255px); height: clamp(175px, 22vw, 255px); flex-direction: column; align-items: center; justify-content: center; justify-self: center; border: 1px solid rgba(244,224,178,.5); border-radius: 50%; color: #f6e7c6; box-shadow: inset 0 0 0 9px rgba(244,224,178,.045), inset 0 0 0 10px rgba(244,224,178,.22), 0 0 0 18px rgba(244,224,178,.035); transform: rotate(-7deg); }
 .seal-ring { position: absolute; top: 18%; font-size: 11px; letter-spacing: .28em; }

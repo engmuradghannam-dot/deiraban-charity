@@ -76,8 +76,9 @@ class MemberPasswordLogin(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         full_name = str(request.data.get("full_name", "")).strip()
         membership_number = str(request.data.get("membership_number", "")).strip()
-        if not full_name or not membership_number:
-            return Response({"detail": "اكتب اسم العضو ورقم العضوية."}, status=status.HTTP_400_BAD_REQUEST)
+        member_id = str(request.data.get("member_id", "")).strip()
+        if not full_name and not member_id:
+            return Response({"detail": "اختر اسم العضو من قائمة الاقتراحات."}, status=status.HTTP_400_BAD_REQUEST)
 
         repository = None
         if sheets_enabled() or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip():
@@ -85,7 +86,13 @@ class MemberPasswordLogin(generics.GenericAPIView):
                 repository = SheetsRepository()
             except RuntimeError:
                 repository = None
-        row = repository.member_for_credentials(full_name, membership_number) if repository else None
+        row = repository.member_for_id(member_id) if repository and member_id else None
+        if not row and repository and full_name and membership_number:
+            row = repository.member_for_credentials(full_name, membership_number)
+        if row and not full_name:
+            full_name = " ".join(filter(None, [row.get("full_name"), row.get("family_name")])).strip()
+        if row and not membership_number:
+            membership_number = str(row.get("membership_number", "")).strip()
         registry = None
         if not row:
             from membership.models import Member as RegistryMember
@@ -98,7 +105,10 @@ class MemberPasswordLogin(generics.GenericAPIView):
                 None,
             )
             if not registry:
-                return Response({"detail": "لم نجد عضوًا بهذا الاسم ورقم العضوية. راجع البيانات أو تواصل مع الإدارة."}, status=status.HTTP_401_UNAUTHORIZED)
+                return Response({"detail": "لم نجد العضو المختار. أعد البحث واختر اسمًا من القائمة."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if not membership_number:
+            return Response({"detail": "هذا العضو لا يملك رقم عضوية معتمدًا بعد. تواصل مع الإدارة."}, status=status.HTTP_403_FORBIDDEN)
 
         User = get_user_model()
         user = None
@@ -122,6 +132,23 @@ class MemberPasswordLogin(generics.GenericAPIView):
             "refresh": str(refresh),
             "user": {"id": user.pk, "username": user.username, "full_name": full_name},
         })
+
+
+class MemberSearch(generics.GenericAPIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        query = str(request.query_params.get("q", "")).strip()
+        if len(normalize_name(query)) < 2:
+            return Response({"results": []})
+        repository = None
+        if sheets_enabled() or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip():
+            try:
+                repository = SheetsRepository()
+            except RuntimeError:
+                repository = None
+        results = repository.search_members(query) if repository else []
+        return Response({"results": results})
 
 
 class MemberRecovery(generics.GenericAPIView):
