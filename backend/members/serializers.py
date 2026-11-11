@@ -42,6 +42,50 @@ class MemberSerializer(serializers.ModelSerializer):
         read_only_fields = ["status", "membership_number", "membership_type"]
 
 
+class MemberPersonalDataSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(required=False, allow_blank=True, write_only=True)
+    has_id_scan = serializers.SerializerMethodField()
+    has_family_book_scan = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Member
+        fields = [
+            "national_id", "phone", "phone_secondary", "email",
+            "id_scan", "family_book_scan", "has_id_scan", "has_family_book_scan",
+        ]
+        extra_kwargs = {
+            "id_scan": {"write_only": True, "required": False},
+            "family_book_scan": {"write_only": True, "required": False},
+        }
+
+    def get_has_id_scan(self, obj):
+        return bool(obj.id_scan)
+
+    def get_has_family_book_scan(self, obj):
+        return bool(obj.family_book_scan)
+
+    @staticmethod
+    def _validate_document(upload):
+        if upload and upload.size > 10 * 1024 * 1024:
+            raise serializers.ValidationError("حجم الملف يجب ألا يتجاوز 10 ميغابايت.")
+        if upload and upload.content_type not in {"application/pdf", "image/jpeg", "image/png", "image/webp"}:
+            raise serializers.ValidationError("يسمح برفع PDF أو JPG أو PNG أو WEBP فقط.")
+        return upload
+
+    def validate_id_scan(self, upload):
+        return self._validate_document(upload)
+
+    def validate_family_book_scan(self, upload):
+        return self._validate_document(upload)
+
+    def update(self, instance, validated_data):
+        email = validated_data.pop("email", None)
+        if email is not None:
+            instance.user.email = email.strip().lower()
+            instance.user.save(update_fields=["email"])
+        return super().update(instance, validated_data)
+
+
 class MemberRegisterSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(max_length=255, trim_whitespace=True)
     family_name = serializers.CharField(max_length=100, trim_whitespace=True)

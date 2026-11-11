@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from rest_framework.test import APIClient
 
@@ -75,3 +76,22 @@ class MemberRegistrationTests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertIn("access", response.data)
         self.assertEqual(response.data["user"]["full_name"], "محمد أحمد الهاشمي")
+
+    def test_member_can_update_personal_data_and_upload_id(self):
+        response = self.client.patch(
+            "/api/members/me/personal/",
+            {
+                "national_id": "9900112233",
+                "phone": "0790000000",
+                "phone_secondary": "0780000000",
+                "email": "member@example.com",
+                "id_scan": SimpleUploadedFile("id.png", b"fake-image", content_type="image/png"),
+            },
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertTrue(response.data["has_id_scan"])
+        profile = Member.objects.get(user=self.user)
+        self.assertEqual(profile.national_id, "9900112233")
+        self.assertEqual(profile.phone_secondary, "0780000000")
+        self.assertEqual(self.user.email, "member@example.com")

@@ -7,11 +7,12 @@ from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from dj_rest_auth.registration.views import SocialLoginView
 from rest_framework import generics, permissions, serializers, status
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from sheets_storage import SheetsRepository, sheets_enabled
 from .models import Member
-from .serializers import MemberRegisterSerializer, MemberSerializer, PublicMemberApplicationSerializer, normalize_name
+from .serializers import MemberPersonalDataSerializer, MemberRegisterSerializer, MemberSerializer, PublicMemberApplicationSerializer, normalize_name
 
 logger = logging.getLogger(__name__)
 
@@ -171,11 +172,49 @@ class MyMemberView(generics.RetrieveAPIView):
                 return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
             row.setdefault("status", "pending")
             row.setdefault("is_eligible_to_vote", row.get("status") in {"approved", "عضو فاعل", "active"})
+            profile = Member.objects.filter(user=request.user).first()
+            if profile:
+                row.update({
+                    "national_id": profile.national_id,
+                    "phone": profile.phone or row.get("phone", ""),
+                    "phone_secondary": profile.phone_secondary,
+                    "email": request.user.email,
+                    "has_id_scan": bool(profile.id_scan),
+                    "has_family_book_scan": bool(profile.family_book_scan),
+                })
             return Response(row)
         return super().retrieve(request, *args, **kwargs)
 
     def get_object(self):
         return get_object_or_404(Member.objects.select_related("registry_member"), user=self.request.user)
+
+
+class MyMemberPersonalDataView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    serializer_class = MemberPersonalDataSerializer
+
+    def get_or_create_profile(self):
+        profile, _ = Member.objects.get_or_create(
+            user=self.request.user,
+            defaults={
+                "full_name": self.request.user.first_name or self.request.user.username,
+                "family_name": "غير محدد",
+                "membership_number": str(self.request.user.username).removeprefix("member-") or None,
+                "status": Member.Status.PENDING,
+            },
+        )
+        return profile
+
+    def get(self, request, *args, **kwargs):
+        return Response(self.get_serializer(self.get_or_create_profile()).data)
+
+    def patch(self, request, *args, **kwargs):
+        profile = self.get_or_create_profile()
+        serializer = self.get_serializer(profile, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
 
 class RegisterMemberView(generics.CreateAPIView):

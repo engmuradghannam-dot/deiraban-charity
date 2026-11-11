@@ -31,6 +31,9 @@ class Member(models.Model):
     family_name = models.CharField("اسم العائلة", max_length=100, db_index=True)
     national_id = models.CharField("الرقم الوطني", max_length=20, blank=True)
     phone = models.CharField("رقم الهاتف", max_length=20, blank=True)
+    phone_secondary = models.CharField("رقم هاتف إضافي", max_length=20, blank=True)
+    id_scan = models.FileField("صورة الهوية", upload_to="member_documents/", blank=True)
+    family_book_scan = models.FileField("صورة دفتر العائلة", upload_to="member_documents/", blank=True)
     membership_type = models.CharField(
         "صفة العضوية", max_length=10, choices=Type.choices, default=Type.INACTIVE
     )

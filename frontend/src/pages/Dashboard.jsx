@@ -1,8 +1,28 @@
+import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
+import api from '../api/client.js'
 import { useAuth } from '../context/AuthContext.jsx'
 
 export default function Dashboard() {
-  const { member, loading } = useAuth()
+  const { member, loading, loadMember } = useAuth()
+  const [form, setForm] = useState({ national_id: '', phone: '', phone_secondary: '', email: '' })
+  const [idScan, setIdScan] = useState(null)
+  const [familyBookScan, setFamilyBookScan] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (member) {
+      setForm({
+        national_id: member.national_id || '',
+        phone: member.phone || '',
+        phone_secondary: member.phone_secondary || '',
+        email: member.email || '',
+      })
+    }
+  }, [member])
+
   if (loading) return <div className="loading-state" role="status">جارٍ تحميل ملف العضوية…</div>
   if (member === null) return <Navigate to="/register" replace />
 
@@ -12,6 +32,31 @@ export default function Dashboard() {
     rejected: <span className="badge badge-red">الطلب يحتاج مراجعة</span>,
   }[member.status] || <span className="badge badge-gray">غير محدد</span>
 
+  const set = (key) => (event) => setForm((previous) => ({ ...previous, [key]: event.target.value }))
+
+  const savePersonalData = async (event) => {
+    event.preventDefault()
+    setSaving(true)
+    setMessage('')
+    setError('')
+    const data = new FormData()
+    Object.entries(form).forEach(([key, value]) => data.append(key, value))
+    if (idScan) data.append('id_scan', idScan)
+    if (familyBookScan) data.append('family_book_scan', familyBookScan)
+    try {
+      await api.patch('/members/me/personal/', data)
+      await loadMember()
+      setIdScan(null)
+      setFamilyBookScan(null)
+      event.target.reset()
+      setMessage('تم حفظ بياناتك الشخصية ورفع الوثائق الخاصة بنجاح.')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'تعذر حفظ البيانات. تأكد من الملفات وحاول مرة أخرى.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="content-page">
       <section className="page-intro">
@@ -20,16 +65,8 @@ export default function Dashboard() {
         <p className="muted">بياناتك المرتبطة بسجل الجمعية.</p>
       </section>
 
-      {member.status === 'pending' && (
-        <div className="alert alert-warning">
-          استلمنا طلب ربط العضوية. سيظهر التصويت بعد مطابقة الإدارة لبيانات السجل واعتماد الحساب.
-        </div>
-      )}
-      {member.status === 'rejected' && (
-        <div className="alert alert-error">
-          تعذر اعتماد طلب العضوية حالياً. يرجى التواصل مع إدارة الجمعية لتصحيح بيانات السجل.
-        </div>
-      )}
+      {member.status === 'pending' && <div className="alert alert-warning">استلمنا طلب ربط العضوية. سيظهر التصويت بعد مطابقة الإدارة لبيانات السجل واعتماد الحساب.</div>}
+      {member.status === 'rejected' && <div className="alert alert-error">تعذر اعتماد طلب العضوية حالياً. يرجى التواصل مع إدارة الجمعية لتصحيح بيانات السجل.</div>}
 
       <section className="panel member-panel">
         <div className="member-avatar" aria-hidden="true">{member.full_name?.trim().charAt(0) || 'م'}</div>
@@ -44,9 +81,41 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <section className="section-heading compact-heading">
-        <div><span className="eyebrow">الاشتراكات السنوية</span><h2>سجل الرسوم</h2></div>
-      </section>
+      <section className="section-heading compact-heading"><div><span className="eyebrow">البيانات الشخصية</span><h2>تحديث ملفي</h2></div></section>
+      <form className="panel form-panel personal-data-form" onSubmit={savePersonalData}>
+        {error && <div className="alert alert-error" role="alert">{error}</div>}
+        {message && <div className="alert alert-success" role="status">{message}</div>}
+        <div className="form-row">
+          <label>الرقم الوطني
+            <input value={form.national_id} onChange={set('national_id')} inputMode="numeric" autoComplete="off" />
+          </label>
+          <label>البريد الإلكتروني
+            <input type="email" value={form.email} onChange={set('email')} autoComplete="email" />
+          </label>
+        </div>
+        <div className="form-row">
+          <label>رقم التواصل الأساسي
+            <input type="tel" value={form.phone} onChange={set('phone')} autoComplete="tel" />
+          </label>
+          <label>رقم تواصل إضافي <span className="optional">اختياري</span>
+            <input type="tel" value={form.phone_secondary} onChange={set('phone_secondary')} />
+          </label>
+        </div>
+        <div className="form-row">
+          <label>صورة الهوية <span className="optional">JPG أو PNG أو PDF</span>
+            <input type="file" accept="image/*,.pdf" onChange={(event) => setIdScan(event.target.files?.[0] || null)} />
+            {member.has_id_scan && <small className="muted">تم رفع صورة هوية سابقًا.</small>}
+          </label>
+          <label>صورة دفتر العائلة <span className="optional">JPG أو PNG أو PDF</span>
+            <input type="file" accept="image/*,.pdf" onChange={(event) => setFamilyBookScan(event.target.files?.[0] || null)} />
+            {member.has_family_book_scan && <small className="muted">تم رفع دفتر العائلة سابقًا.</small>}
+          </label>
+        </div>
+        <p className="form-note">الوثائق خاصة ولا تظهر للأعضاء الآخرين. الحد الأقصى للملف 10 ميغابايت.</p>
+        <button className="button button-primary" disabled={saving}>{saving ? 'جارٍ الحفظ…' : 'حفظ البيانات والوثائق'}</button>
+      </form>
+
+      <section className="section-heading compact-heading"><div><span className="eyebrow">الاشتراكات السنوية</span><h2>سجل الرسوم</h2></div></section>
       {member.fees?.length ? (
         <div className="table-scroll panel">
           <table className="data-table">
