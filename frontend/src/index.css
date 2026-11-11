@@ -249,3 +249,21 @@ input:focus, select:focus { border-color: var(--green-2); box-shadow: 0 0 0 3px 
   .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
   .data-table { min-width: 560px; }
 }
+
+textarea {
+  width: 100%;
+  min-height: 92px;
+  margin-top: 5px;
+  padding: 9px 11px;
+  border: 1px solid #dce3db;
+  border-radius: 9px;
+  outline: none;
+  color: var(--ink);
+  background: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  resize: vertical;
+}
+textarea:focus { border-color: var(--green-2); box-shadow: 0 0 0 3px rgba(36, 89, 72, .08); }
+
+.google-btn-wrap { display: flex; justify-content: center; padding: 18px 0 6px; }

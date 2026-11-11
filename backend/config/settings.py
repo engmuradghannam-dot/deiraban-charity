@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "dj_rest_auth",
     "dj_rest_auth.registration",
     "membership",
+    "aid_requests",
     "members",
     "elections",
     "donations",

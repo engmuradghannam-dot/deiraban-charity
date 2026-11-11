@@ -7,6 +7,7 @@ import ElectionDetail from './pages/ElectionDetail.jsx'
 import Elections from './pages/Elections.jsx'
 import Home from './pages/Home.jsx'
 import Login from './pages/Login.jsx'
+import AidRequest from './pages/AidRequest.jsx'
 
 export default function App() {
   const application = (
@@ -36,6 +37,7 @@ function ApplicationShell() {
         <nav className="site-nav" aria-label="القائمة الرئيسية">
           <NavLink to="/elections" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>الانتخابات</NavLink>
           <NavLink to="/donations" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>التبرعات</NavLink>
+          <NavLink to="/aid-request" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>طلب مساعدة</NavLink>
           {!user && <NavLink to="/register" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>تسجيل عضو جديد</NavLink>}
           {user && <NavLink to="/account" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>عضويتي</NavLink>}
           {!loading && (user
@@ -53,6 +55,7 @@ function ApplicationShell() {
           <Route path="/elections" element={<RequireAuth><Elections /></RequireAuth>} />
           <Route path="/elections/:id" element={<RequireAuth><ElectionDetail /></RequireAuth>} />
           <Route path="/donations" element={<Donations />} />
+          <Route path="/aid-request" element={<AidRequest />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
