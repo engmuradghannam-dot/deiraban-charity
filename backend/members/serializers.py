@@ -74,3 +74,8 @@ class PublicMemberApplicationSerializer(serializers.Serializer):
     full_name = serializers.CharField(max_length=255, trim_whitespace=True)
     family_name = serializers.CharField(max_length=100, trim_whitespace=True)
     phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
+
+    def validate_full_name(self, value):
+        if len(normalize_name(value).split()) < 3:
+            raise serializers.ValidationError("يجب كتابة الاسم الثلاثي على الأقل.")
+        return value

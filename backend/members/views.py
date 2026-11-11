@@ -205,6 +205,8 @@ class RegisterMemberView(generics.CreateAPIView):
             data = serializer.validated_data
             if repository.member_for_name(data["full_name"], data["family_name"]):
                 return Response({"detail": "هذا الاسم موجود في سجل الجمعية. استخدم استرجاع رقم العضوية أو تواصل مع الإدارة."}, status=status.HTTP_409_CONFLICT)
+            if repository.member_application_for_name(data["full_name"], data["family_name"]):
+                return Response({"detail": "يوجد طلب تسجيل بهذا الاسم قيد المراجعة. لا يمكن إرسال طلب مكرر."}, status=status.HTTP_409_CONFLICT)
             application = repository.create_member_application(data)
             return Response(
                 {**application, "message": "تم استلام طلب التسجيل، وستراجعه الإدارة وتحدد رقم العضوية لاحقًا."},

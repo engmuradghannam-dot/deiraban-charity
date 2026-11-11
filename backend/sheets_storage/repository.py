@@ -176,6 +176,18 @@ class SheetsRepository:
             None,
         )
 
+    def member_application_for_name(self, full_name: str, family_name: str) -> dict[str, Any] | None:
+        wanted_full_name = normalize_name(full_name)
+        wanted_family_name = normalize_name(family_name)
+        return next(
+            (
+                row for row in self._rows("members")
+                if normalize_name(row.get("full_name")) == wanted_full_name
+                and normalize_name(row.get("family_name")) == wanted_family_name
+            ),
+            None,
+        )
+
     def member_for_credentials(self, full_name: str, membership_number: str) -> dict[str, Any] | None:
         wanted_name = normalize_name(full_name)
         wanted_number = str(membership_number or "").strip().casefold()
