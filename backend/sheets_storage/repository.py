@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -141,7 +142,7 @@ class SheetsRepository:
     @staticmethod
     def _member_view(row: dict[str, Any]) -> dict[str, Any]:
         """Support the existing sheet columns: number, name, family."""
-        return {
+        view = {
             **row,
             "id": row.get("id") or row.get("number", ""),
             "membership_number": row.get("membership_number") or row.get("number", ""),
@@ -149,6 +150,22 @@ class SheetsRepository:
             "family_name": row.get("family_name") or row.get("family", ""),
             "membership_type": row.get("membership_type") or row.get("status", "inactive"),
         }
+        fees = []
+        for key, value in row.items():
+            match = re.fullmatch(r"y(20\d{2})(_base)?", str(key).strip(), flags=re.IGNORECASE)
+            if not match:
+                continue
+            raw_value = _string(value).strip()
+            fees.append({
+                "year": int(match.group(1)),
+                "label": f"{match.group(1)} (أساس)" if match.group(2) else match.group(1),
+                "amount": raw_value,
+                "recorded_value": raw_value,
+                "paid": raw_value not in {"", "/", "-"},
+                "paid_at": "",
+            })
+        view["fees"] = sorted(fees, key=lambda fee: fee["year"])
+        return view
 
     def campaigns(self) -> list[dict[str, Any]]:
         campaigns = []

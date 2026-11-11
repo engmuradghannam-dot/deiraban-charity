@@ -50,10 +50,10 @@ export default function Dashboard() {
       {member.fees?.length ? (
         <div className="table-scroll panel">
           <table className="data-table">
-            <thead><tr><th>السنة</th><th>المبلغ</th><th>الحالة</th><th>تاريخ السداد</th></tr></thead>
+            <thead><tr><th>السنة</th><th>البيان المسجل</th><th>الحالة</th><th>تاريخ السداد</th></tr></thead>
             <tbody>{member.fees.map((fee) => (
               <tr key={fee.year}>
-                <td>{fee.year}</td><td>{fee.amount} د.أ</td>
+                <td>{fee.label || fee.year}</td><td>{fee.recorded_value || fee.amount || '—'}</td>
                 <td><span className={`badge ${fee.paid ? 'badge-green' : 'badge-yellow'}`}>{fee.paid ? 'مسدد' : 'غير مسدد'}</span></td>
                 <td>{fee.paid_at || '—'}</td>
               </tr>
