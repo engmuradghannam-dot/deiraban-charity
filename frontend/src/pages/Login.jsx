@@ -21,7 +21,9 @@ export default function Login() {
       return
     }
     try {
-      const response = await fetch(`${baseURL}/auth/member-search/?q=${encodeURIComponent(full_name.trim())}`)
+      const response = await fetch(`${baseURL}/auth/member-search/?q=${encodeURIComponent(full_name.trim())}&refresh=${Date.now()}`, {
+        cache: 'no-store',
+      })
       const data = await response.json().catch(() => ({}))
       setSuggestions(data.results || [])
     } catch {

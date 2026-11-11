@@ -149,7 +149,9 @@ class MemberSearch(generics.GenericAPIView):
             except RuntimeError:
                 repository = None
         results = repository.search_members(query) if repository else []
-        return Response({"results": results})
+        response = Response({"results": results})
+        response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        return response
 
 
 class MyMemberView(generics.RetrieveAPIView):
@@ -182,7 +184,9 @@ class MyMemberView(generics.RetrieveAPIView):
                     "has_id_scan": bool(profile.id_scan),
                     "has_family_book_scan": bool(profile.family_book_scan),
                 })
-            return Response(row)
+            response = Response(row)
+            response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            return response
         return super().retrieve(request, *args, **kwargs)
 
     def get_object(self):

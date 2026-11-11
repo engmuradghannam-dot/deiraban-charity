@@ -16,9 +16,10 @@ export function AuthProvider({ children }) {
   const [member, setMember] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const loadMember = useCallback(async () => {
+  const loadMember = useCallback(async (forceRefresh = true) => {
     try {
-      const { data } = await api.get('/members/me/')
+      const config = forceRefresh ? { params: { refresh: Date.now() } } : undefined
+      const { data } = await api.get('/members/me/', config)
       setMember(data)
       return data
     } catch (error) {
