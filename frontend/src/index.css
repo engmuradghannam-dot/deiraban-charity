@@ -194,6 +194,8 @@ input:focus, select:focus { border-color: var(--green-2); box-shadow: 0 0 0 3px 
 .form-panel .button { margin-top: 5px; }
 .member-panel { display: flex; align-items: center; gap: 17px; padding: 22px; }
 .member-avatar { display: grid; width: 56px; height: 56px; flex: 0 0 56px; place-items: center; border-radius: 18px; color: var(--green); background: #eaf1ea; font-size: 25px; font-weight: 800; }
+.profile-avatar { overflow: hidden; }
+.profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .member-details { flex: 1; }
 .member-title { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
 .member-title h2 { margin: 0; color: var(--green); font-size: 18px; }
@@ -202,6 +204,14 @@ input:focus, select:focus { border-color: var(--green-2); box-shadow: 0 0 0 3px 
 .eligibility-card { display: flex; align-items: center; gap: 7px; padding: 9px 11px; border-radius: 9px; color: #65746b; background: #f2f5f0; font-size: 10px; white-space: nowrap; }
 .eligibility-dot { width: 8px; height: 8px; border-radius: 50%; background: #a3aca3; }
 .eligibility-dot.is-eligible { background: #2b8656; box-shadow: 0 0 0 4px rgba(43,134,86,.12); }
+.personal-summary { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px 22px; }
+.summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px; flex: 1; }
+.summary-grid span { display: flex; flex-direction: column; gap: 3px; }
+.summary-grid small { color: #879189; font-size: 10px; }
+.summary-grid strong { color: var(--green); font-size: 12px; word-break: break-word; }
+.button-secondary { color: var(--green); background: #edf3ed; }
+.button-secondary:hover:not(:disabled) { background: #dfeade; }
+.form-actions { display: flex; align-items: center; gap: 10px; }
 
 @media (max-width: 900px) {
   .service-grid, .campaign-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -235,5 +245,7 @@ input:focus, select:focus { border-color: var(--green-2); box-shadow: 0 0 0 3px 
   .member-panel { align-items: flex-start; flex-wrap: wrap; }
   .eligibility-card { margin-right: 73px; }
   .member-title h2 { font-size: 15px; }
+  .personal-summary { align-items: stretch; flex-direction: column; }
+  .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
   .data-table { min-width: 560px; }
 }

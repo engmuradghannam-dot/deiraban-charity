@@ -1,6 +1,8 @@
 import logging
+import mimetypes
 import os
 import requests
+from django.http import FileResponse
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from django.contrib.auth import get_user_model
@@ -181,6 +183,7 @@ class MyMemberView(generics.RetrieveAPIView):
                     "phone": profile.phone or row.get("phone", ""),
                     "phone_secondary": profile.phone_secondary,
                     "email": request.user.email,
+                    "has_profile_photo": bool(profile.profile_photo) if profile else False,
                     "has_id_scan": bool(profile.id_scan),
                     "has_family_book_scan": bool(profile.family_book_scan),
                 })
@@ -219,6 +222,19 @@ class MyMemberPersonalDataView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+
+class MyMemberProfilePhotoView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        profile = Member.objects.filter(user=request.user).first()
+        if not profile or not profile.profile_photo:
+            return Response({"detail": "لا توجد صورة شخصية مرفوعة."}, status=status.HTTP_404_NOT_FOUND)
+        content_type = mimetypes.guess_type(profile.profile_photo.name)[0] or "image/jpeg"
+        response = FileResponse(profile.profile_photo.open("rb"), content_type=content_type)
+        response["Cache-Control"] = "private, no-store"
+        return response
 
 
 class RegisterMemberView(generics.CreateAPIView):

@@ -6,6 +6,9 @@ import { useAuth } from '../context/AuthContext.jsx'
 export default function Dashboard() {
   const { member, loading, loadMember } = useAuth()
   const [form, setForm] = useState({ national_id: '', phone: '', phone_secondary: '', email: '' })
+  const [profilePhoto, setProfilePhoto] = useState(null)
+  const [photoUrl, setPhotoUrl] = useState('')
+  const [editing, setEditing] = useState(false)
   const [idScan, setIdScan] = useState(null)
   const [familyBookScan, setFamilyBookScan] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -20,8 +23,28 @@ export default function Dashboard() {
         phone_secondary: member.phone_secondary || '',
         email: member.email || '',
       })
+      if (!member.national_id && !member.phone && !member.email && !member.has_id_scan && !member.has_profile_photo) {
+        setEditing(true)
+      }
     }
   }, [member])
+
+  useEffect(() => {
+    let objectUrl = ''
+    if (member?.has_profile_photo) {
+      api.get('/members/me/profile-photo/', { responseType: 'blob' })
+        .then(({ data }) => {
+          objectUrl = URL.createObjectURL(data)
+          setPhotoUrl(objectUrl)
+        })
+        .catch(() => setPhotoUrl(''))
+    } else {
+      setPhotoUrl('')
+    }
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [member?.has_profile_photo])
 
   if (loading) return <div className="loading-state" role="status">جارٍ تحميل ملف العضوية…</div>
   if (member === null) return <Navigate to="/register" replace />
@@ -43,11 +66,14 @@ export default function Dashboard() {
     Object.entries(form).forEach(([key, value]) => data.append(key, value))
     if (idScan) data.append('id_scan', idScan)
     if (familyBookScan) data.append('family_book_scan', familyBookScan)
+    if (profilePhoto) data.append('profile_photo', profilePhoto)
     try {
       await api.patch('/members/me/personal/', data)
       await loadMember()
       setIdScan(null)
       setFamilyBookScan(null)
+      setProfilePhoto(null)
+      setEditing(false)
       event.target.reset()
       setMessage('تم حفظ بياناتك الشخصية ورفع الوثائق الخاصة بنجاح.')
     } catch (err) {
@@ -69,7 +95,9 @@ export default function Dashboard() {
       {member.status === 'rejected' && <div className="alert alert-error">تعذر اعتماد طلب العضوية حالياً. يرجى التواصل مع إدارة الجمعية لتصحيح بيانات السجل.</div>}
 
       <section className="panel member-panel">
-        <div className="member-avatar" aria-hidden="true">{member.full_name?.trim().charAt(0) || 'م'}</div>
+        <div className="member-avatar profile-avatar">
+          {photoUrl ? <img src={photoUrl} alt={`الصورة الشخصية لـ ${member.full_name}`} /> : (member.full_name?.trim().charAt(0) || 'م')}
+        </div>
         <div className="member-details">
           <div className="member-title"><h2>{member.full_name}</h2>{statusBadge}</div>
           <p className="muted">عائلة {member.family_name} <span className="dot-separator">·</span> رقم العضوية <strong>{member.membership_number || '—'}</strong></p>
@@ -82,9 +110,17 @@ export default function Dashboard() {
       </section>
 
       <section className="section-heading compact-heading"><div><span className="eyebrow">البيانات الشخصية</span><h2>تحديث ملفي</h2></div></section>
-      <form className="panel form-panel personal-data-form" onSubmit={savePersonalData}>
+      {message && <div className="alert alert-success" role="status">{message}</div>}
+      {!editing ? <section className="panel personal-summary">
+        <div className="summary-grid">
+          <span><small>الرقم الوطني</small><strong>{member.national_id || 'غير مضاف'}</strong></span>
+          <span><small>البريد الإلكتروني</small><strong>{member.email || 'غير مضاف'}</strong></span>
+          <span><small>رقم التواصل</small><strong>{member.phone || 'غير مضاف'}</strong></span>
+          <span><small>الوثائق</small><strong>{member.has_id_scan || member.has_family_book_scan ? 'مرفوعة' : 'غير مرفوعة'}</strong></span>
+        </div>
+        <button type="button" className="button button-secondary" onClick={() => setEditing(true)}>تحديث البيانات</button>
+      </section> : <form className="panel form-panel personal-data-form" onSubmit={savePersonalData}>
         {error && <div className="alert alert-error" role="alert">{error}</div>}
-        {message && <div className="alert alert-success" role="status">{message}</div>}
         <div className="form-row">
           <label>الرقم الوطني
             <input value={form.national_id} onChange={set('national_id')} inputMode="numeric" autoComplete="off" />
@@ -111,9 +147,13 @@ export default function Dashboard() {
             {member.has_family_book_scan && <small className="muted">تم رفع دفتر العائلة سابقًا.</small>}
           </label>
         </div>
+        <label>الصورة الشخصية <span className="optional">JPG أو PNG أو WEBP</span>
+          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setProfilePhoto(event.target.files?.[0] || null)} />
+          {member.has_profile_photo && <small className="muted">تم رفع صورة شخصية سابقًا.</small>}
+        </label>
         <p className="form-note">الوثائق خاصة ولا تظهر للأعضاء الآخرين. الحد الأقصى للملف 10 ميغابايت.</p>
-        <button className="button button-primary" disabled={saving}>{saving ? 'جارٍ الحفظ…' : 'حفظ البيانات والوثائق'}</button>
-      </form>
+        <div className="form-actions"><button className="button button-primary" disabled={saving}>{saving ? 'جارٍ الحفظ…' : 'حفظ البيانات والوثائق'}</button><button type="button" className="button button-secondary" onClick={() => setEditing(false)} disabled={saving}>إلغاء</button></div>
+      </form>}
 
       <section className="section-heading compact-heading"><div><span className="eyebrow">الاشتراكات السنوية</span><h2>سجل الرسوم</h2></div></section>
       {member.fees?.length ? (

@@ -46,14 +46,17 @@ class MemberPersonalDataSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=False, allow_blank=True, write_only=True)
     has_id_scan = serializers.SerializerMethodField()
     has_family_book_scan = serializers.SerializerMethodField()
+    has_profile_photo = serializers.SerializerMethodField()
 
     class Meta:
         model = Member
         fields = [
             "national_id", "phone", "phone_secondary", "email",
-            "id_scan", "family_book_scan", "has_id_scan", "has_family_book_scan",
+            "profile_photo", "id_scan", "family_book_scan",
+            "has_profile_photo", "has_id_scan", "has_family_book_scan",
         ]
         extra_kwargs = {
+            "profile_photo": {"write_only": True, "required": False},
             "id_scan": {"write_only": True, "required": False},
             "family_book_scan": {"write_only": True, "required": False},
         }
@@ -61,8 +64,18 @@ class MemberPersonalDataSerializer(serializers.ModelSerializer):
     def get_has_id_scan(self, obj):
         return bool(obj.id_scan)
 
+    def get_has_profile_photo(self, obj):
+        return bool(obj.profile_photo)
+
     def get_has_family_book_scan(self, obj):
         return bool(obj.family_book_scan)
+
+    def validate_profile_photo(self, upload):
+        if upload and upload.size > 5 * 1024 * 1024:
+            raise serializers.ValidationError("حجم الصورة يجب ألا يتجاوز 5 ميغابايت.")
+        if upload and upload.content_type not in {"image/jpeg", "image/png", "image/webp"}:
+            raise serializers.ValidationError("يسمح برفع صورة JPG أو PNG أو WEBP فقط.")
+        return upload
 
     @staticmethod
     def _validate_document(upload):

@@ -32,6 +32,7 @@ class Member(models.Model):
     national_id = models.CharField("الرقم الوطني", max_length=20, blank=True)
     phone = models.CharField("رقم الهاتف", max_length=20, blank=True)
     phone_secondary = models.CharField("رقم هاتف إضافي", max_length=20, blank=True)
+    profile_photo = models.ImageField("الصورة الشخصية", upload_to="member_profiles/", blank=True)
     id_scan = models.FileField("صورة الهوية", upload_to="member_documents/", blank=True)
     family_book_scan = models.FileField("صورة دفتر العائلة", upload_to="member_documents/", blank=True)
     membership_type = models.CharField(
