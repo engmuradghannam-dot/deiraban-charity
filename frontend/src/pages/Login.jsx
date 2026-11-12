@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { baseURL } from '../api/client.js'
@@ -11,24 +11,32 @@ export default function Login() {
   const [suggestions, setSuggestions] = useState([])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const searchTimer = useRef(null)
+  const searchController = useRef(null)
 
-  const setName = async (event) => {
+  const setName = (event) => {
     const full_name = event.target.value
     setForm({ full_name, member_id: '' })
     setError('')
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchController.current?.abort()
     if (full_name.trim().length < 2) {
       setSuggestions([])
       return
     }
-    try {
-      const response = await fetch(`${baseURL}/auth/member-search/?q=${encodeURIComponent(full_name.trim())}&refresh=${Date.now()}`, {
-        cache: 'no-store',
-      })
-      const data = await response.json().catch(() => ({}))
-      setSuggestions(data.results || [])
-    } catch {
-      setSuggestions([])
-    }
+    searchTimer.current = setTimeout(async () => {
+      const controller = new AbortController()
+      searchController.current = controller
+      try {
+        const response = await fetch(`${baseURL}/auth/member-search/?q=${encodeURIComponent(full_name.trim())}`, {
+          cache: 'no-store', signal: controller.signal,
+        })
+        const data = await response.json().catch(() => ({}))
+        if (!controller.signal.aborted) setSuggestions(data.results || [])
+      } catch (error) {
+        if (error.name !== 'AbortError') setSuggestions([])
+      }
+    }, 250)
   }
 
   const chooseSuggestion = (member) => {

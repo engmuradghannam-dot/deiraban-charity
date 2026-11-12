@@ -52,7 +52,7 @@ class InMemorySheetsClient:
     def __init__(self, rows: dict[str, list[dict[str, Any]]] | None = None):
         self.rows = {tab: list(values) for tab, values in (rows or {}).items()}
 
-    def read_rows(self, tab: str) -> list[dict[str, Any]]:
+    def read_rows(self, tab: str, range_name: str = "A:Z") -> list[dict[str, Any]]:
         return [dict(row) for row in self.rows.get(tab, [])]
 
     def append_row(self, tab: str, row: dict[str, Any]) -> dict[str, Any]:
@@ -69,7 +69,7 @@ class InMemorySheetsClient:
 
 class GoogleSheetsClient:
     """Small adapter around Sheets API v4. Imports are lazy so disabled deployments need no credentials."""
-    _rows_cache: dict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = {}
+    _rows_cache: dict[tuple[str, str, str], tuple[float, list[dict[str, Any]]]] = {}
     _cache_lock = threading.RLock()
 
     def __init__(self, spreadsheet_id: str | None = None, credentials_json: str | None = None, service: Any = None):
@@ -89,8 +89,8 @@ class GoogleSheetsClient:
             credentials = Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets"])
             self.service = build("sheets", "v4", credentials=credentials, cache_discovery=False)
 
-    def read_rows(self, tab: str) -> list[dict[str, Any]]:
-        cache_key = (self.spreadsheet_id, tab)
+    def read_rows(self, tab: str, range_name: str = "A:Z") -> list[dict[str, Any]]:
+        cache_key = (self.spreadsheet_id, tab, range_name)
         try:
             cache_seconds = max(0, float(os.getenv("GOOGLE_SHEETS_CACHE_SECONDS", "30")))
         except ValueError:
@@ -101,7 +101,7 @@ class GoogleSheetsClient:
             if cached and cache_seconds and now - cached[0] < cache_seconds:
                 return [dict(row) for row in cached[1]]
         result = self.service.spreadsheets().values().get(
-            spreadsheetId=self.spreadsheet_id, range=f"'{tab}'!A:Z"
+            spreadsheetId=self.spreadsheet_id, range=f"'{tab}'!{range_name}"
         ).execute()
         values = result.get("values", [])
         if not values:
@@ -116,7 +116,9 @@ class GoogleSheetsClient:
 
     def _invalidate_cache(self, tab: str) -> None:
         with self._cache_lock:
-            self._rows_cache.pop((self.spreadsheet_id, tab), None)
+            for key in list(self._rows_cache):
+                if key[:2] == (self.spreadsheet_id, tab):
+                    self._rows_cache.pop(key, None)
 
     def append_row(self, tab: str, row: dict[str, Any]) -> dict[str, Any]:
         headers = TAB_HEADERS[tab]
@@ -153,8 +155,8 @@ class SheetsRepository:
     def __init__(self, client: Any | None = None):
         self.client = client or GoogleSheetsClient()
 
-    def _rows(self, tab: str) -> list[dict[str, Any]]:
-        return self.client.read_rows(tab)
+    def _rows(self, tab: str, range_name: str = "A:Z") -> list[dict[str, Any]]:
+        return self.client.read_rows(tab, range_name)
 
     def _member_tab(self) -> str:
         configured = os.getenv("GOOGLE_SHEETS_MEMBERS_TAB", "الأعضاء").strip() or "الأعضاء"
@@ -236,7 +238,8 @@ class SheetsRepository:
         if len(wanted) < 2:
             return []
         results = []
-        for raw in self._member_rows():
+        # Autocomplete needs only number/name/family; avoid downloading all fee columns.
+        for raw in self._rows(self._member_tab(), "A:C"):
             full_name = raw.get("full_name") or raw.get("name") or ""
             family_name = raw.get("family_name") or raw.get("family") or ""
             if normalize_name(full_name).startswith(wanted):
