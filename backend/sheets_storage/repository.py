@@ -237,18 +237,30 @@ class GoogleDriveClient:
 
     def _folder(self) -> str:
         if self.folder_id:
+            try:
+                self.service.files().get(
+                    fileId=self.folder_id,
+                    fields="id,mimeType",
+                    supportsAllDrives=True,
+                ).execute()
+            except Exception as exc:
+                raise RuntimeError(
+                    "مجلد Google Drive المحدد غير موجود أو غير مشارك مع حساب الخدمة. "
+                    "تحقق من GOOGLE_DRIVE_MEMBER_FOLDER_ID وصلاحية Editor."
+                ) from exc
             return self.folder_id
         name = os.getenv("GOOGLE_DRIVE_MEMBER_FOLDER_NAME", "Deiraban Member Documents").strip()
         result = self.service.files().list(
             q=f"name = '{name.replace(chr(39), chr(92) + chr(39))}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
             spaces="drive", fields="files(id,name)", pageSize=1,
+            supportsAllDrives=True, includeItemsFromAllDrives=True,
         ).execute().get("files", [])
         if result:
             self.folder_id = result[0]["id"]
             return self.folder_id
         folder = self.service.files().create(
             body={"name": name, "mimeType": "application/vnd.google-apps.folder"},
-            fields="id",
+            fields="id", supportsAllDrives=True,
         ).execute()
         self.folder_id = folder["id"]
         return self.folder_id
@@ -257,11 +269,12 @@ class GoogleDriveClient:
         from googleapiclient.http import MediaIoBaseUpload
         filename = os.path.basename(file_field.name)
         file_field.open("rb")
+        file_field.file.seek(0)
         mimetype = mimetypes.guess_type(filename)[0] or "application/octet-stream"
         media = MediaIoBaseUpload(file_field.file, mimetype=mimetype, resumable=False)
         uploaded = self.service.files().create(
             body={"name": f"member-{member_number}-{kind}-{filename}", "parents": [self._folder()]},
-            media_body=media, fields="id",
+            media_body=media, fields="id", supportsAllDrives=True,
         ).execute()
         return uploaded["id"]
 

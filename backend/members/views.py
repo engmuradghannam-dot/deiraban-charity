@@ -251,9 +251,10 @@ class MyMemberPersonalDataView(generics.GenericAPIView):
                     if field_name in request.FILES:
                         setattr(profile, drive_field, drive.upload(getattr(profile, field_name), membership_number, kind))
                 profile.save(update_fields=["id_scan_drive_id", "family_book_scan_drive_id", "profile_photo_drive_id"])
-            except Exception:
+            except Exception as exc:
                 logger.exception("Failed to upload member files to Google Drive")
-                return Response({"detail": "تم حفظ البيانات، لكن تعذر رفع الملفات إلى Google Drive. أعد رفع الملفات."}, status=status.HTTP_502_BAD_GATEWAY)
+                detail = str(exc) if isinstance(exc, RuntimeError) else "تحقق من مشاركة مجلد Google Drive مع حساب الخدمة ومن تفعيل Drive API."
+                return Response({"detail": f"تم حفظ البيانات، لكن تعذر رفع الملفات إلى Google Drive: {detail}"}, status=status.HTTP_502_BAD_GATEWAY)
         sheets_saved = False
         if sheets_enabled() or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip():
             personal_data = {
