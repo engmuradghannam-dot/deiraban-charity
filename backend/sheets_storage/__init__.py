@@ -1,3 +1,3 @@
-from .repository import InMemorySheetsClient, SheetsRepository, sheets_enabled
+from .repository import GoogleDriveClient, InMemorySheetsClient, SheetsRepository, sheets_enabled
 
-__all__ = ["InMemorySheetsClient", "SheetsRepository", "sheets_enabled"]
+__all__ = ["GoogleDriveClient", "InMemorySheetsClient", "SheetsRepository", "sheets_enabled"]

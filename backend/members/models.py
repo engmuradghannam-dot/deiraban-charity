@@ -33,8 +33,11 @@ class Member(models.Model):
     phone = models.CharField("رقم الهاتف", max_length=20, blank=True)
     phone_secondary = models.CharField("رقم هاتف إضافي", max_length=20, blank=True)
     profile_photo = models.ImageField("الصورة الشخصية", upload_to="member_profiles/", blank=True)
+    profile_photo_drive_id = models.CharField("معرّف صورة العضو في Drive", max_length=200, blank=True)
     id_scan = models.FileField("صورة الهوية", upload_to="member_documents/", blank=True)
+    id_scan_drive_id = models.CharField("معرّف الهوية في Drive", max_length=200, blank=True)
     family_book_scan = models.FileField("صورة دفتر العائلة", upload_to="member_documents/", blank=True)
+    family_book_scan_drive_id = models.CharField("معرّف دفتر العائلة في Drive", max_length=200, blank=True)
     membership_type = models.CharField(
         "صفة العضوية", max_length=10, choices=Type.choices, default=Type.INACTIVE
     )

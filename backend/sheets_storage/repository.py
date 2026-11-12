@@ -5,6 +5,8 @@ Authentication/session data remains in Django. This module only stores domain ro
 from __future__ import annotations
 
 import json
+import io
+import mimetypes
 import os
 import re
 import threading
@@ -25,8 +27,8 @@ TAB_HEADERS = {
 PERSONAL_TAB = "بيانات الأعضاء"
 PERSONAL_HEADERS = [
     "membership_number", "full_name", "family_name", "national_id", "phone",
-    "phone_secondary", "email", "id_scan_url", "family_book_scan_url",
-    "profile_photo_url", "updated_at",
+    "phone_secondary", "email", "id_scan_drive_id", "family_book_scan_drive_id",
+    "profile_photo_drive_id", "updated_at",
 ]
 
 
@@ -215,6 +217,64 @@ class GoogleSheetsClient:
             ).execute()
             self._invalidate_cache(tab)
             return merged
+
+
+class GoogleDriveClient:
+    """Private Drive storage; files are never made public and are streamed by the API."""
+    def __init__(self, credentials_json: str | None = None):
+        self.credentials_json = credentials_json or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+        if not self.credentials_json:
+            raise RuntimeError("Google Drive storage requires GOOGLE_SERVICE_ACCOUNT_JSON")
+        try:
+            from google.oauth2.service_account import Credentials
+            from googleapiclient.discovery import build
+        except ImportError as exc:
+            raise RuntimeError("Install google-auth and google-api-python-client for Drive storage") from exc
+        info = json.loads(self.credentials_json)
+        credentials = Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/drive"])
+        self.service = build("drive", "v3", credentials=credentials, cache_discovery=False)
+        self.folder_id = os.getenv("GOOGLE_DRIVE_MEMBER_FOLDER_ID", "").strip()
+
+    def _folder(self) -> str:
+        if self.folder_id:
+            return self.folder_id
+        name = os.getenv("GOOGLE_DRIVE_MEMBER_FOLDER_NAME", "Deiraban Member Documents").strip()
+        result = self.service.files().list(
+            q=f"name = '{name.replace(chr(39), chr(92) + chr(39))}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+            spaces="drive", fields="files(id,name)", pageSize=1,
+        ).execute().get("files", [])
+        if result:
+            self.folder_id = result[0]["id"]
+            return self.folder_id
+        folder = self.service.files().create(
+            body={"name": name, "mimeType": "application/vnd.google-apps.folder"},
+            fields="id",
+        ).execute()
+        self.folder_id = folder["id"]
+        return self.folder_id
+
+    def upload(self, file_field: Any, member_number: str, kind: str) -> str:
+        from googleapiclient.http import MediaIoBaseUpload
+        filename = os.path.basename(file_field.name)
+        file_field.open("rb")
+        mimetype = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        media = MediaIoBaseUpload(file_field.file, mimetype=mimetype, resumable=False)
+        uploaded = self.service.files().create(
+            body={"name": f"member-{member_number}-{kind}-{filename}", "parents": [self._folder()]},
+            media_body=media, fields="id",
+        ).execute()
+        return uploaded["id"]
+
+    def download(self, file_id: str) -> io.BytesIO:
+        from googleapiclient.http import MediaIoBaseDownload
+        stream = io.BytesIO()
+        request = self.service.files().get_media(fileId=file_id)
+        downloader = MediaIoBaseDownload(stream, request)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+        stream.seek(0)
+        return stream
         return None
 
 

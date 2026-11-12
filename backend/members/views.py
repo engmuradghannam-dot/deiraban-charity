@@ -13,7 +13,7 @@ from rest_framework import generics, permissions, serializers, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from sheets_storage import SheetsRepository, sheets_enabled
+from sheets_storage import GoogleDriveClient, SheetsRepository, sheets_enabled
 from .models import Member
 from .serializers import MemberPersonalDataSerializer, MemberRegisterSerializer, MemberSerializer, PublicMemberApplicationSerializer, normalize_name
 
@@ -239,9 +239,23 @@ class MyMemberPersonalDataView(generics.GenericAPIView):
         serializer = self.get_serializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        membership_number = str(profile.membership_number or request.user.username).removeprefix("member-")
+        if request.FILES and os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip():
+            try:
+                drive = GoogleDriveClient()
+                for field_name, drive_field, kind in (
+                    ("id_scan", "id_scan_drive_id", "id"),
+                    ("family_book_scan", "family_book_scan_drive_id", "family-book"),
+                    ("profile_photo", "profile_photo_drive_id", "photo"),
+                ):
+                    if field_name in request.FILES:
+                        setattr(profile, drive_field, drive.upload(getattr(profile, field_name), membership_number, kind))
+                profile.save(update_fields=["id_scan_drive_id", "family_book_scan_drive_id", "profile_photo_drive_id"])
+            except Exception:
+                logger.exception("Failed to upload member files to Google Drive")
+                return Response({"detail": "تم حفظ البيانات، لكن تعذر رفع الملفات إلى Google Drive. أعد رفع الملفات."}, status=status.HTTP_502_BAD_GATEWAY)
         sheets_saved = False
         if sheets_enabled() or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip():
-            membership_number = str(profile.membership_number or request.user.username).removeprefix("member-")
             personal_data = {
                 "membership_number": membership_number,
                 "full_name": profile.full_name,
@@ -250,9 +264,9 @@ class MyMemberPersonalDataView(generics.GenericAPIView):
                 "phone": profile.phone,
                 "phone_secondary": profile.phone_secondary,
                 "email": request.user.email,
-                "id_scan_url": profile.id_scan.url if profile.id_scan else "",
-                "family_book_scan_url": profile.family_book_scan.url if profile.family_book_scan else "",
-                "profile_photo_url": profile.profile_photo.url if profile.profile_photo else "",
+                "id_scan_drive_id": profile.id_scan_drive_id,
+                "family_book_scan_drive_id": profile.family_book_scan_drive_id,
+                "profile_photo_drive_id": profile.profile_photo_drive_id,
                 "updated_at": timezone.now().isoformat(),
             }
             try:
@@ -270,10 +284,51 @@ class MyMemberProfilePhotoView(generics.GenericAPIView):
 
     def get(self, request, *args, **kwargs):
         profile = Member.objects.filter(user=request.user).first()
-        if not profile or not profile.profile_photo:
+        if not profile:
+            return Response({"detail": "لا توجد صورة شخصية مرفوعة."}, status=status.HTTP_404_NOT_FOUND)
+        if profile.profile_photo_drive_id:
+            try:
+                content = GoogleDriveClient().download(profile.profile_photo_drive_id)
+                response = FileResponse(content, content_type="image/jpeg")
+                response["Cache-Control"] = "private, no-store"
+                return response
+            except Exception:
+                logger.exception("Failed to download member profile photo from Drive")
+                return Response({"detail": "تعذر استرجاع الصورة الشخصية."}, status=status.HTTP_502_BAD_GATEWAY)
+        if not profile.profile_photo:
             return Response({"detail": "لا توجد صورة شخصية مرفوعة."}, status=status.HTTP_404_NOT_FOUND)
         content_type = mimetypes.guess_type(profile.profile_photo.name)[0] or "image/jpeg"
         response = FileResponse(profile.profile_photo.open("rb"), content_type=content_type)
+        response["Cache-Control"] = "private, no-store"
+        return response
+
+
+class MyMemberDocumentView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, document_type, *args, **kwargs):
+        profile = Member.objects.filter(user=request.user).first()
+        fields = {
+            "id": ("id_scan_drive_id", "id_scan"),
+            "family-book": ("family_book_scan_drive_id", "family_book_scan"),
+        }
+        if document_type not in fields or not profile:
+            return Response({"detail": "الوثيقة غير موجودة."}, status=status.HTTP_404_NOT_FOUND)
+        drive_field, local_field = fields[document_type]
+        drive_id = getattr(profile, drive_field)
+        if drive_id:
+            try:
+                content = GoogleDriveClient().download(drive_id)
+                response = FileResponse(content, content_type="application/octet-stream")
+                response["Cache-Control"] = "private, no-store"
+                return response
+            except Exception:
+                logger.exception("Failed to download member document from Drive")
+                return Response({"detail": "تعذر استرجاع الوثيقة."}, status=status.HTTP_502_BAD_GATEWAY)
+        local_file = getattr(profile, local_field)
+        if not local_file:
+            return Response({"detail": "الوثيقة غير موجودة."}, status=status.HTTP_404_NOT_FOUND)
+        response = FileResponse(local_file.open("rb"), content_type=mimetypes.guess_type(local_file.name)[0] or "application/octet-stream")
         response["Cache-Control"] = "private, no-store"
         return response
 
