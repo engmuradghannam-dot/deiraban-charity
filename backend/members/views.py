@@ -7,6 +7,7 @@ from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from dj_rest_auth.registration.views import SocialLoginView
 from rest_framework import generics, permissions, serializers, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -238,7 +239,30 @@ class MyMemberPersonalDataView(generics.GenericAPIView):
         serializer = self.get_serializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(serializer.data)
+        sheets_saved = False
+        if sheets_enabled() or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip():
+            membership_number = str(profile.membership_number or request.user.username).removeprefix("member-")
+            personal_data = {
+                "membership_number": membership_number,
+                "full_name": profile.full_name,
+                "family_name": profile.family_name,
+                "national_id": profile.national_id,
+                "phone": profile.phone,
+                "phone_secondary": profile.phone_secondary,
+                "email": request.user.email,
+                "id_scan_url": profile.id_scan.url if profile.id_scan else "",
+                "family_book_scan_url": profile.family_book_scan.url if profile.family_book_scan else "",
+                "profile_photo_url": profile.profile_photo.url if profile.profile_photo else "",
+                "updated_at": timezone.now().isoformat(),
+            }
+            try:
+                SheetsRepository().save_member_personal_data(personal_data)
+                sheets_saved = True
+            except Exception:
+                logger.exception("Failed to sync member personal data to Google Sheets")
+                return Response({"detail": "تم حفظ البيانات محليًا، لكن تعذر مزامنتها مع Google Sheets. أعد المحاولة."}, status=status.HTTP_502_BAD_GATEWAY)
+        response_data = {**serializer.data, "saved_to_google_sheets": sheets_saved}
+        return Response(response_data)
 
 
 class MyMemberProfilePhotoView(generics.GenericAPIView):

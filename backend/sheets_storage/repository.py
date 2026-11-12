@@ -22,6 +22,13 @@ TAB_HEADERS = {
     "campaigns": ["id", "title", "description", "goal_amount", "is_active", "created_at"],
 }
 
+PERSONAL_TAB = "بيانات الأعضاء"
+PERSONAL_HEADERS = [
+    "membership_number", "full_name", "family_name", "national_id", "phone",
+    "phone_secondary", "email", "id_scan_url", "family_book_scan_url",
+    "profile_photo_url", "updated_at",
+]
+
 
 def _string(value: Any) -> str:
     if value is None:
@@ -37,6 +44,14 @@ def _string(value: Any) -> str:
 
 def _bool(value: Any) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _column_name(number: int) -> str:
+    result = ""
+    while number:
+        number, remainder = divmod(number - 1, 26)
+        result = chr(65 + remainder) + result
+    return result or "A"
 
 
 def normalize_name(value: Any) -> str:
@@ -58,6 +73,17 @@ class InMemorySheetsClient:
     def append_row(self, tab: str, row: dict[str, Any]) -> dict[str, Any]:
         self.rows.setdefault(tab, []).append(dict(row))
         return dict(row)
+
+    def ensure_sheet_headers(self, tab: str, headers: list[str]) -> None:
+        self.rows.setdefault(tab, [])
+
+    def upsert_sheet_row(self, tab: str, headers: list[str], key_header: str, key: str, row: dict[str, Any]) -> None:
+        values = {header: row.get(header, "") for header in headers}
+        for current in self.rows.setdefault(tab, []):
+            if str(current.get(key_header, "")) == str(key):
+                current.update(values)
+                return
+        self.rows[tab].append(values)
 
     def update_row_by_id(self, tab: str, row_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
         for row in self.rows.get(tab, []):
@@ -120,6 +146,47 @@ class GoogleSheetsClient:
                 if key[:2] == (self.spreadsheet_id, tab):
                     self._rows_cache.pop(key, None)
 
+    def ensure_sheet_headers(self, tab: str, headers: list[str]) -> None:
+        metadata = self.service.spreadsheets().get(
+            spreadsheetId=self.spreadsheet_id, fields="sheets.properties.title"
+        ).execute()
+        titles = {sheet["properties"]["title"] for sheet in metadata.get("sheets", [])}
+        if tab not in titles:
+            self.service.spreadsheets().batchUpdate(
+                spreadsheetId=self.spreadsheet_id,
+                body={"requests": [{"addSheet": {"properties": {"title": tab}}}]},
+            ).execute()
+        end_column = _column_name(len(headers))
+        self.service.spreadsheets().values().update(
+            spreadsheetId=self.spreadsheet_id,
+            range=f"'{tab}'!A1:{end_column}1",
+            valueInputOption="RAW",
+            body={"values": [headers]},
+        ).execute()
+        self._invalidate_cache(tab)
+
+    def upsert_sheet_row(self, tab: str, headers: list[str], key_header: str, key: str, row: dict[str, Any]) -> None:
+        rows = self.read_rows(tab, f"A:{_column_name(len(headers))}")
+        index = next((i for i, item in enumerate(rows, start=2) if str(item.get(key_header, "")) == str(key)), None)
+        values = [_string(row.get(header, "")) for header in headers]
+        if index is None:
+            self.service.spreadsheets().values().append(
+                spreadsheetId=self.spreadsheet_id,
+                range=f"'{tab}'!A:A",
+                valueInputOption="RAW",
+                insertDataOption="INSERT_ROWS",
+                body={"values": [values]},
+            ).execute()
+        else:
+            end_column = _column_name(len(headers))
+            self.service.spreadsheets().values().update(
+                spreadsheetId=self.spreadsheet_id,
+                range=f"'{tab}'!A{index}:{end_column}{index}",
+                valueInputOption="RAW",
+                body={"values": [values]},
+            ).execute()
+        self._invalidate_cache(tab)
+
     def append_row(self, tab: str, row: dict[str, Any]) -> dict[str, Any]:
         headers = TAB_HEADERS[tab]
         self.service.spreadsheets().values().append(
@@ -166,6 +233,13 @@ class SheetsRepository:
 
     def _member_rows(self) -> list[dict[str, Any]]:
         return self._rows(self._member_tab())
+
+    def save_member_personal_data(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Persist editable member fields in a dedicated Google Sheets tab."""
+        self.client.ensure_sheet_headers(PERSONAL_TAB, PERSONAL_HEADERS)
+        row = {header: data.get(header, "") for header in PERSONAL_HEADERS}
+        self.client.upsert_sheet_row(PERSONAL_TAB, PERSONAL_HEADERS, "membership_number", row["membership_number"], row)
+        return row
 
     @staticmethod
     def _member_view(row: dict[str, Any]) -> dict[str, Any]:

@@ -31,6 +31,25 @@ class SheetsRepositoryTests(unittest.TestCase):
         self.assertEqual((ballots, selections), (1, 1))
         self.assertEqual(rows[0]["votes"], 1)
 
+    def test_personal_data_is_upserted_by_membership_number(self):
+        self.repo.save_member_personal_data({
+            "membership_number": "7",
+            "full_name": "أحمد علاء الدين",
+            "family_name": "الدعامسه",
+            "national_id": "11111",
+            "phone": "0795018444",
+            "email": "member@example.com",
+        })
+        self.repo.save_member_personal_data({
+            "membership_number": "7",
+            "full_name": "أحمد علاء الدين",
+            "family_name": "الدعامسه",
+            "national_id": "22222",
+        })
+        rows = self.client.read_rows("بيانات الأعضاء")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["national_id"], "22222")
+
 
 if __name__ == "__main__":
     unittest.main()
