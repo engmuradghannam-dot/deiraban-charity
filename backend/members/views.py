@@ -130,10 +130,27 @@ class MemberPasswordLogin(generics.GenericAPIView):
             repository.link_member_to_user(row.get("id"), user.pk)
 
         refresh = RefreshToken.for_user(user)
+        member_payload = None
+        if row:
+            member_payload = {**row}
+            member_payload.setdefault("status", "pending")
+            member_payload.setdefault("is_eligible_to_vote", member_payload.get("status") in {"approved", "عضو فاعل", "active"})
+            profile = Member.objects.filter(user=user).first()
+            if profile:
+                member_payload.update({
+                    "national_id": profile.national_id,
+                    "phone": profile.phone or member_payload.get("phone", ""),
+                    "phone_secondary": profile.phone_secondary,
+                    "email": user.email,
+                    "has_profile_photo": bool(profile.profile_photo),
+                    "has_id_scan": bool(profile.id_scan),
+                    "has_family_book_scan": bool(profile.family_book_scan),
+                })
         return Response({
             "access": str(refresh.access_token),
             "refresh": str(refresh),
             "user": {"id": user.pk, "username": user.username, "full_name": full_name},
+            "member": member_payload,
         })
 
 

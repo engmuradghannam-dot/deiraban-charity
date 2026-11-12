@@ -7,6 +7,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
+import time
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -67,6 +69,9 @@ class InMemorySheetsClient:
 
 class GoogleSheetsClient:
     """Small adapter around Sheets API v4. Imports are lazy so disabled deployments need no credentials."""
+    _rows_cache: dict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = {}
+    _cache_lock = threading.RLock()
+
     def __init__(self, spreadsheet_id: str | None = None, credentials_json: str | None = None, service: Any = None):
         self.spreadsheet_id = spreadsheet_id or os.getenv("GOOGLE_SHEETS_SPREADSHEET_ID", "").strip()
         self.credentials_json = credentials_json or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
@@ -85,14 +90,33 @@ class GoogleSheetsClient:
             self.service = build("sheets", "v4", credentials=credentials, cache_discovery=False)
 
     def read_rows(self, tab: str) -> list[dict[str, Any]]:
+        cache_key = (self.spreadsheet_id, tab)
+        try:
+            cache_seconds = max(0, float(os.getenv("GOOGLE_SHEETS_CACHE_SECONDS", "30")))
+        except ValueError:
+            cache_seconds = 30
+        now = time.monotonic()
+        with self._cache_lock:
+            cached = self._rows_cache.get(cache_key)
+            if cached and cache_seconds and now - cached[0] < cache_seconds:
+                return [dict(row) for row in cached[1]]
         result = self.service.spreadsheets().values().get(
             spreadsheetId=self.spreadsheet_id, range=f"'{tab}'!A:Z"
         ).execute()
         values = result.get("values", [])
         if not values:
+            with self._cache_lock:
+                self._rows_cache[cache_key] = (now, [])
             return []
         headers = values[0]
-        return [dict(zip(headers, row + [""] * (len(headers) - len(row)))) for row in values[1:]]
+        rows = [dict(zip(headers, row + [""] * (len(headers) - len(row)))) for row in values[1:]]
+        with self._cache_lock:
+            self._rows_cache[cache_key] = (now, rows)
+        return [dict(row) for row in rows]
+
+    def _invalidate_cache(self, tab: str) -> None:
+        with self._cache_lock:
+            self._rows_cache.pop((self.spreadsheet_id, tab), None)
 
     def append_row(self, tab: str, row: dict[str, Any]) -> dict[str, Any]:
         headers = TAB_HEADERS[tab]
@@ -103,6 +127,7 @@ class GoogleSheetsClient:
             insertDataOption="INSERT_ROWS",
             body={"values": [[_string(row.get(header, "")) for header in headers]]},
         ).execute()
+        self._invalidate_cache(tab)
         return row
 
     def update_row_by_id(self, tab: str, row_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
@@ -119,6 +144,7 @@ class GoogleSheetsClient:
                 valueInputOption="USER_ENTERED",
                 body={"values": [[_string(merged.get(header, "")) for header in headers]]},
             ).execute()
+            self._invalidate_cache(tab)
             return merged
         return None
 

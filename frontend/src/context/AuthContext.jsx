@@ -49,7 +49,8 @@ export function AuthProvider({ children }) {
       localStorage.setItem('member_full_name', data.user.full_name || '')
       setUser(data.user)
     }
-    await loadMember().catch(() => null)
+    if (data.member) setMember(data.member)
+    else await loadMember().catch(() => null)
   }, [loadMember])
 
   const logout = useCallback(() => {
