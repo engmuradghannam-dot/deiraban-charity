@@ -73,6 +73,33 @@ class GoogleLogin(SocialLoginView):
             )
 
 
+class LinkGoogleAccount(generics.GenericAPIView):
+    """ربط بريد Google موثق بالحساب الذي دخل برقم العضوية."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        id_token = str(request.data.get("id_token", "")).strip()
+        client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip() or "708875573840-vc4ug1oe97nm7bm590dat6h2f36b8f73.apps.googleusercontent.com"
+        if not id_token:
+            return Response({"detail": "رمز Google مطلوب."}, status=status.HTTP_400_BAD_REQUEST)
+        token_response = requests.get("https://oauth2.googleapis.com/tokeninfo", params={"id_token": id_token}, timeout=10)
+        if token_response.status_code != 200:
+            return Response({"detail": "رمز Google غير صالح أو منتهي."}, status=status.HTTP_400_BAD_REQUEST)
+        claims = token_response.json()
+        if claims.get("aud") != client_id or claims.get("email_verified", claims.get("verified_email")) not in {True, "true", "True"}:
+            return Response({"detail": "يجب استخدام حساب Google موثق تابع لهذا التطبيق."}, status=status.HTTP_400_BAD_REQUEST)
+        email = str(claims.get("email", "")).strip().lower()
+        if not email:
+            return Response({"detail": "لم يتم العثور على بريد Google."}, status=status.HTTP_400_BAD_REQUEST)
+        User = get_user_model()
+        owner = User.objects.filter(email=email).exclude(pk=request.user.pk).first()
+        if owner:
+            return Response({"detail": "هذا البريد مرتبط بحساب آخر بالفعل."}, status=status.HTTP_409_CONFLICT)
+        request.user.email = email
+        request.user.save(update_fields=["email"])
+        return Response({"email": email, "message": "تم ربط حساب Google بعضويتك بنجاح."})
+
+
 class MemberPasswordLogin(generics.GenericAPIView):
     """تسجيل الدخول باستخدام اسم العضو ورقم العضوية ككلمة مرور."""
     permission_classes = [permissions.AllowAny]

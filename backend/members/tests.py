@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from unittest.mock import patch
 from rest_framework.test import APIClient
 
 from membership.models import Family, Member as RegistryMember
@@ -95,3 +96,16 @@ class MemberRegistrationTests(TestCase):
         self.assertEqual(profile.national_id, "9900112233")
         self.assertEqual(profile.phone_secondary, "0780000000")
         self.assertEqual(self.user.email, "member@example.com")
+
+    @patch("members.views.requests.get")
+    def test_member_can_link_verified_google_email(self, mock_get):
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {
+            "aud": "708875573840-vc4ug1oe97nm7bm590dat6h2f36b8f73.apps.googleusercontent.com",
+            "email": "google-member@example.com",
+            "email_verified": "true",
+        }
+        response = self.client.post("/api/auth/google/link/", {"id_token": "test-token"}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "google-member@example.com")

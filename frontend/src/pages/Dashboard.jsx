@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import api from '../api/client.js'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -14,6 +14,9 @@ export default function Dashboard() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const googleButtonRef = useRef(null)
+  const [googleMessage, setGoogleMessage] = useState('')
+  const [googleError, setGoogleError] = useState('')
 
   useEffect(() => {
     if (member) {
@@ -45,6 +48,38 @@ export default function Dashboard() {
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [member?.has_profile_photo])
+
+  useEffect(() => {
+    if (!member || member.email) return undefined
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '708875573840-vc4ug1oe97nm7bm590dat6h2f36b8f73.apps.googleusercontent.com'
+    let timer
+    const renderGoogleButton = () => {
+      if (!window.google?.accounts?.id || !googleButtonRef.current) {
+        timer = setTimeout(renderGoogleButton, 300)
+        return
+      }
+      googleButtonRef.current.innerHTML = ''
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: async (response) => {
+          setGoogleMessage('')
+          setGoogleError('')
+          try {
+            const { data } = await api.post('/auth/google/link/', { id_token: response.credential })
+            setGoogleMessage(data.message || 'تم ربط حساب Google بنجاح.')
+            await loadMember()
+          } catch (err) {
+            setGoogleError(err.response?.data?.detail || 'تعذر ربط حساب Google.')
+          }
+        },
+      })
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        type: 'standard', theme: 'outline', size: 'large', text: 'continue_with', shape: 'pill', locale: 'ar',
+      })
+    }
+    renderGoogleButton()
+    return () => clearTimeout(timer)
+  }, [member, loadMember])
 
   if (loading) return <div className="loading-state" role="status">جارٍ تحميل ملف العضوية…</div>
   if (member === null) return <Navigate to="/register" replace />
@@ -119,6 +154,12 @@ export default function Dashboard() {
           <span><small>الوثائق</small><strong>{member.has_id_scan || member.has_family_book_scan ? 'مرفوعة' : 'غير مرفوعة'}</strong></span>
         </div>
         <button type="button" className="button button-secondary" onClick={() => setEditing(true)}>تحديث البيانات</button>
+        <div className="google-link-box">
+          <small>{member.email ? `حساب Google المرتبط: ${member.email}` : 'اربط بريد Google لتسجيل الدخول به لاحقًا'}</small>
+          {!member.email && <div ref={googleButtonRef} />}
+          {googleMessage && <span className="google-link-success">{googleMessage}</span>}
+          {googleError && <span className="google-link-error">{googleError}</span>}
+        </div>
       </section> : <form className="panel form-panel personal-data-form" onSubmit={savePersonalData}>
         {error && <div className="alert alert-error" role="alert">{error}</div>}
         <div className="form-row">
