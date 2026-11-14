@@ -280,7 +280,19 @@ class MyMemberPersonalDataView(generics.GenericAPIView):
                 profile.save(update_fields=["id_scan_drive_id", "family_book_scan_drive_id", "profile_photo_drive_id"])
             except Exception as exc:
                 logger.exception("Failed to upload member files to Google Drive")
-                detail = str(exc) if isinstance(exc, RuntimeError) else "تحقق من مشاركة مجلد Google Drive مع حساب الخدمة ومن تفعيل Drive API."
+                drive_status = getattr(getattr(exc, "resp", None), "status", None)
+                if drive_status == 403:
+                    detail = "403: حساب الخدمة لا يملك صلاحية Editor على المجلد أو أن Google Drive API مفعّلة في مشروع مختلف."
+                elif drive_status == 404:
+                    detail = "404: معرّف المجلد غير صحيح أو المجلد غير ظاهر لحساب الخدمة."
+                elif drive_status in {400, 401}:
+                    detail = f"{drive_status}: بيانات حساب الخدمة أو طلب Drive غير صالح."
+                elif drive_status == 429:
+                    detail = "429: تم تجاوز حد Google Drive مؤقتًا، أعد المحاولة لاحقًا."
+                elif isinstance(exc, RuntimeError):
+                    detail = str(exc)
+                else:
+                    detail = "تحقق من GOOGLE_SERVICE_ACCOUNT_JSON ومشاركة المجلد مع حساب الخدمة ومن تفعيل Drive API."
                 return Response({"detail": f"تم حفظ البيانات، لكن تعذر رفع الملفات إلى Google Drive: {detail}"}, status=status.HTTP_502_BAD_GATEWAY)
         sheets_saved = False
         if sheets_enabled() or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip():
